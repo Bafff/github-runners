@@ -61,7 +61,7 @@
 
 Примените корневой манифест (App-of-Apps):
 ```bash
-kubectl apply -f apps/root-app.yaml
+kubectl apply -f bootstrap/root-app.yaml
 ```
 ArgoCD автоматически:
 - Поднимет неймспейс `arc-systems` и развернет `gha-runner-scale-set-controller`.

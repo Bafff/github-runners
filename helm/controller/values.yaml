@@ -2,7 +2,7 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller
+  repository: ghcr.io/actions/gha-runner-scale-set-controller
   pullPolicy: IfNotPresent
 
 serviceAccount:
