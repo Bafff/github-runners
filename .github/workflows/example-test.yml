@@ -1,0 +1,26 @@
+name: Self-Hosted Runner Verification
+
+on:
+  workflow_dispatch: # Запуск вручную по кнопке в GitHub Actions
+  push:
+    branches: [ main ]
+
+jobs:
+  check-runner:
+    # Имя должно совпадать с runnerScaleSetName в values.yaml
+    runs-on: arc-runner-set
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Print Runner System Info
+        run: |
+          echo "=== Раннер успешно запустился в Kubernetes! ==="
+          echo "Хостнейм пода: $(hostname)"
+          echo "ОС и ядро: $(uname -a)"
+          echo "Доступная память:"
+          free -h
+          echo "Процессоры:"
+          nproc
+          echo "Текущий пользователь:"
+          whoami

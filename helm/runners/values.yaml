@@ -1,0 +1,29 @@
+# Values for gha-runner-scale-set (Standard Runner, lightweight)
+# URL вашего репозитория (или организации):
+# https://github.com/ВАШ_ЛОГИН/ВАШ_РЕПО
+githubConfigUrl: "https://github.com/REPLACE_WITH_YOUR_USER/REPLACE_WITH_YOUR_REPO"
+
+# Имя Kubernetes Secret с учетными данными GitHub (создается отдельно через secrets/):
+githubConfigSecret: arc-runner-secret
+
+# Имя scale set (используется в `runs-on: arc-runner-set` в файлах workflow):
+runnerScaleSetName: "arc-runner-set"
+
+# Настройки масштабирования:
+minRunners: 0   # 0 подов при простое (не потребляет CPU и RAM)
+maxRunners: 5   # максимум параллельных задач
+
+# Спецификация пода раннера
+template:
+  spec:
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:latest
+        command: ["/home/runner/run.sh"]
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 4Gi

@@ -1,0 +1,12 @@
+# Secrets and credentials
+*.key
+*.pem
+*.token
+*secret*.yaml
+!*secret*.template.yaml
+.env
+
+# OS / Editor files
+.DS_Store
+.idea/
+.vscode/

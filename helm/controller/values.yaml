@@ -1,0 +1,24 @@
+# Values for gha-runner-scale-set-controller
+replicaCount: 1
+
+image:
+  repository: ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 50m
+    memory: 128Mi
+
+metrics:
+  controllerManagerAddr: ":8080"
+  listenerAddr: ":8080"
+  listenerEndpoint: "/metrics"
+
+logLevel: "info"

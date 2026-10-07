@@ -1,0 +1,76 @@
+# Values for gha-runner-scale-set с поддержкой Docker-in-Docker (DinD)
+# Используйте этот файл, если вашим тестам потребуется docker build, docker run или docker compose.
+githubConfigUrl: "https://github.com/REPLACE_WITH_YOUR_USER/REPLACE_WITH_YOUR_REPO"
+
+githubConfigSecret: arc-runner-secret
+
+# Чтобы не конфликтовать со стандартным, можно назвать runnerScaleSetName: arc-runner-dind
+# Тогда в workflow можно писать: `runs-on: arc-runner-dind`
+runnerScaleSetName: "arc-runner-dind"
+
+minRunners: 0
+maxRunners: 5
+
+template:
+  spec:
+    initContainers:
+      - name: init-dind-externals
+        image: ghcr.io/actions/actions-runner:latest
+        command: ["cp", "-r", "-v", "/home/runner/externals/.", "/dind-externals/"]
+        volumeMounts:
+          - name: dind-externals
+            mountPath: /dind-externals
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:latest
+        command: ["/home/runner/run.sh"]
+        env:
+          - name: DOCKER_HOST
+            value: tcp://localhost:2376
+          - name: DOCKER_TLS_VERIFY
+            value: "1"
+          - name: DOCKER_CERT_PATH
+            value: /certs/client
+        volumeMounts:
+          - name: work
+            mountPath: /home/runner/_work
+          - name: dind-certs
+            mountPath: /certs/client
+            readOnly: true
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 1Gi
+          limits:
+            cpu: 4000m
+            memory: 6Gi
+      - name: dind
+        image: docker:dind
+        args:
+          - --storage-driver=overlay2
+        securityContext:
+          privileged: true
+        env:
+          - name: DOCKER_TLS_CERTDIR
+            value: /certs
+        volumeMounts:
+          - name: work
+            mountPath: /home/runner/_work
+          - name: dind-certs
+            mountPath: /certs/client
+          - name: dind-externals
+            mountPath: /home/runner/externals
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+    volumes:
+      - name: work
+        emptyDir: {}
+      - name: dind-certs
+        emptyDir: {}
+      - name: dind-externals
+        emptyDir: {}
