@@ -8,12 +8,9 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/REPLACE_WITH_YOUR_USER/github-runners.git
+    repoURL: https://github.com/Bafff/github-runners.git
     targetRevision: HEAD
     path: apps
-    directory:
-      recurse: false
-      exclude: 'root-app.yaml'
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd

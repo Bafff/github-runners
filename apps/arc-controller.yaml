@@ -3,6 +3,9 @@ kind: Application
 metadata:
   name: arc-controller
   namespace: argocd
+  annotations:
+    # Волна 1: Сначала ставится контроллер и регистрируются CRD
+    argocd.argoproj.io/sync-wave: "1"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
@@ -14,7 +17,7 @@ spec:
       helm:
         valueFiles:
           - $values/helm/controller/values.yaml
-    - repoURL: https://github.com/REPLACE_WITH_YOUR_USER/github-runners.git
+    - repoURL: https://github.com/Bafff/github-runners.git
       targetRevision: HEAD
       ref: values
   destination:
