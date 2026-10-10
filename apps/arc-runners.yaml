@@ -14,6 +14,7 @@ spec:
       chart: gha-runner-scale-set
       targetRevision: 0.15.0
       helm:
+        releaseName: "arc-runner-set"
         valueFiles:
           - $values/helm/runners/values.yaml
     - repoURL: https://github.com/Bafff/github-runners.git
@@ -24,7 +25,7 @@ spec:
     namespace: arc-runners
   syncPolicy:
     automated:
-      prune: false
+      prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
