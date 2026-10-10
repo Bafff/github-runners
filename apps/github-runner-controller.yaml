@@ -1,33 +1,32 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: arc-runners
+  name: github-runner-controller
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-wave: "1"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   sources:
     - repoURL: ghcr.io/actions/actions-runner-controller-charts
-      chart: gha-runner-scale-set
+      chart: gha-runner-scale-set-controller
       targetRevision: 0.15.0
       helm:
-        releaseName: "arc-runner-set"
+        releaseName: "arc"
         valueFiles:
-          - $values/helm/runners/values.yaml
+          - $values/helm/controller/values.yaml
     - repoURL: https://github.com/Bafff/github-runners.git
       targetRevision: HEAD
       ref: values
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-runners
+    namespace: arc-systems
   syncPolicy:
     automated:
-      prune: true
+      prune: false
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
-      - SkipDryRunOnMissingResource=true

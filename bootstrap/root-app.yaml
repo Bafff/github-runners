@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: github-runners-root
+  name: github-runners-argocd-root
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io

@@ -1,0 +1,27 @@
+# Values for gha-runner-scale-set (Standard Runner, lightweight)
+githubConfigUrl: "https://github.com/Bafff/homelab-hosts"
+
+githubConfigSecret: arc-runner-secret
+
+runnerScaleSetName: "5950x-k8s"
+
+minRunners: 0
+maxRunners: 5
+
+template:
+  spec:
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:latest
+        command: ["/home/runner/run.sh"]
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+
+controllerServiceAccount:
+  namespace: "arc-systems"
+  name: "arc-gha-rs-controller"
