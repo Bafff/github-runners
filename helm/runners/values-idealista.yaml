@@ -7,6 +7,11 @@ maxRunners: 5
 template:
   spec:
     initContainers:
+      - name: init-network-mtu
+        image: docker:dind
+        command: ["sh", "-c", "ip link set dev eth0 mtu 1280"]
+        securityContext:
+          privileged: true
       - name: init-dind-externals
         image: ghcr.io/actions/actions-runner:latest
         command: ["cp", "-r", "-v", "/home/runner/externals/.", "/home/runner/tmpDir/"]
@@ -38,8 +43,8 @@ template:
           - dockerd
           - --host=unix:///var/run/docker.sock
           - --group=$(DOCKER_GROUP_GID)
-          - --mtu=1400
-          - --default-network-opt=bridge=com.docker.network.driver.mtu=1400
+          - --mtu=1280
+          - --default-network-opt=bridge=com.docker.network.driver.mtu=1280
         env:
           - name: DOCKER_GROUP_GID
             value: "123"
