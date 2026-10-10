@@ -4,7 +4,6 @@ metadata:
   name: arc-runners
   namespace: argocd
   annotations:
-    # Волна 2: Раннеры создаются только после того, как контроллер готов и зарегистрировал CRD
     argocd.argoproj.io/sync-wave: "2"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
@@ -13,7 +12,7 @@ spec:
   sources:
     - repoURL: ghcr.io/actions/actions-runner-controller-charts
       chart: gha-runner-scale-set
-      targetRevision: 0.14.2
+      targetRevision: 0.15.0
       helm:
         valueFiles:
           - $values/helm/runners/values.yaml
@@ -25,8 +24,9 @@ spec:
     namespace: arc-runners
   syncPolicy:
     automated:
-      prune: true
+      prune: false
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - ServerSideApply=true
       - SkipDryRunOnMissingResource=true

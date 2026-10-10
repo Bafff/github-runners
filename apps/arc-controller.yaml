@@ -4,7 +4,6 @@ metadata:
   name: arc-controller
   namespace: argocd
   annotations:
-    # Волна 1: Сначала ставится контроллер и регистрируются CRD
     argocd.argoproj.io/sync-wave: "1"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
@@ -13,7 +12,7 @@ spec:
   sources:
     - repoURL: ghcr.io/actions/actions-runner-controller-charts
       chart: gha-runner-scale-set-controller
-      targetRevision: 0.14.2
+      targetRevision: 0.15.0
       helm:
         valueFiles:
           - $values/helm/controller/values.yaml
@@ -25,7 +24,7 @@ spec:
     namespace: arc-systems
   syncPolicy:
     automated:
-      prune: true
+      prune: false
       selfHeal: true
     syncOptions:
       - CreateNamespace=true

@@ -1,19 +1,13 @@
 # Values for gha-runner-scale-set (Standard Runner, lightweight)
-# URL вашего репозитория (или организации):
-# https://github.com/ВАШ_ЛОГИН/ВАШ_РЕПО
-githubConfigUrl: "https://github.com/REPLACE_WITH_YOUR_USER/REPLACE_WITH_YOUR_REPO"
+githubConfigUrl: "https://github.com/Bafff/homelab-hosts"
 
-# Имя Kubernetes Secret с учетными данными GitHub (создается отдельно через secrets/):
 githubConfigSecret: arc-runner-secret
 
-# Имя scale set (используется в `runs-on: arc-runner-set` в файлах workflow):
-runnerScaleSetName: "arc-runner-set"
+runnerScaleSetName: "5950x-k8s"
 
-# Настройки масштабирования:
-minRunners: 0   # 0 подов при простое (не потребляет CPU и RAM)
-maxRunners: 5   # максимум параллельных задач
+minRunners: 0
+maxRunners: 5
 
-# Спецификация пода раннера
 template:
   spec:
     containers:
