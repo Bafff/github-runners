@@ -1,21 +1,30 @@
 githubConfigUrl: "https://github.com/Bafff/idealista-tracker"
-
 githubConfigSecret: arc-runner-secret
-
 runnerScaleSetName: "idealista-5950x"
-
 minRunners: 0
 maxRunners: 5
 
-containerMode:
-  type: "dind"
-
 template:
   spec:
+    initContainers:
+      - name: init-dind-externals
+        image: ghcr.io/actions/actions-runner:latest
+        command: ["cp", "-r", "-v", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+        volumeMounts:
+          - name: dind-externals
+            mountPath: /home/runner/tmpDir
     containers:
       - name: runner
         image: ghcr.io/actions/actions-runner:latest
         command: ["/home/runner/run.sh"]
+        env:
+          - name: DOCKER_HOST
+            value: unix:///var/run/docker.sock
+        volumeMounts:
+          - name: work
+            mountPath: /home/runner/_work
+          - name: dind-sock
+            mountPath: /var/run
         resources:
           requests:
             cpu: 1000m
@@ -23,6 +32,40 @@ template:
           limits:
             cpu: 16000m
             memory: 20Gi
+      - name: dind
+        image: docker:dind
+        args:
+          - dockerd
+          - --host=unix:///var/run/docker.sock
+          - --group=$(DOCKER_GROUP_GID)
+          - --mtu=1400
+          - --default-network-opt=bridge=com.docker.network.driver.mtu=1400
+        env:
+          - name: DOCKER_GROUP_GID
+            value: "123"
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - name: work
+            mountPath: /home/runner/_work
+          - name: dind-sock
+            mountPath: /var/run
+          - name: dind-externals
+            mountPath: /home/runner/externals
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 4000m
+            memory: 4Gi
+    volumes:
+      - name: work
+        emptyDir: {}
+      - name: dind-sock
+        emptyDir: {}
+      - name: dind-externals
+        emptyDir: {}
 
 controllerServiceAccount:
   namespace: "arc-systems"
