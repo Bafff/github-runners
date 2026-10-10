@@ -21,3 +21,7 @@ template:
           limits:
             cpu: 2000m
             memory: 4Gi
+
+controllerServiceAccount:
+  namespace: "arc-systems"
+  name: "arc-gha-rs-controller"
