@@ -2,7 +2,7 @@ githubConfigUrl: "https://github.com/Bafff/idealista-tracker"
 githubConfigSecret: arc-runner-secret
 runnerScaleSetName: "idealista-5950x"
 minRunners: 0
-maxRunners: 3
+maxRunners: 2
 
 template:
   spec:
