@@ -6,21 +6,22 @@ maxRunners: 5
 
 template:
   spec:
+    priorityClassName: ci-runner-low
     initContainers:
       - name: init-network-mtu
-        image: docker:dind
+        image: docker:29.9.0-dind@sha256:0b6d18a4a222e71c88be6034926b4f6cde2fc33c2218643d03ccfddc65995470
         command: ["sh", "-c", "ip link set dev eth0 mtu 1280"]
         securityContext:
           privileged: true
       - name: init-dind-externals
-        image: ghcr.io/actions/actions-runner:latest
+        image: ghcr.io/actions/actions-runner:2.338.0@sha256:4ffadc0002b2581327e06101fc8c06cd189232baf79fe561fac9caeb76f5e807
         command: ["cp", "-r", "-v", "/home/runner/externals/.", "/home/runner/tmpDir/"]
         volumeMounts:
           - name: dind-externals
             mountPath: /home/runner/tmpDir
     containers:
       - name: runner
-        image: ghcr.io/actions/actions-runner:latest
+        image: ghcr.io/actions/actions-runner:2.338.0@sha256:4ffadc0002b2581327e06101fc8c06cd189232baf79fe561fac9caeb76f5e807
         command: ["/home/runner/run.sh"]
         env:
           - name: DOCKER_HOST
@@ -35,10 +36,10 @@ template:
             cpu: 1000m
             memory: 2Gi
           limits:
-            cpu: 16000m
-            memory: 20Gi
+            cpu: 12000m
+            memory: 8Gi
       - name: dind
-        image: docker:dind
+        image: docker:29.9.0-dind@sha256:0b6d18a4a222e71c88be6034926b4f6cde2fc33c2218643d03ccfddc65995470
         args:
           - dockerd
           - --host=unix:///var/run/docker.sock

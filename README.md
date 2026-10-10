@@ -33,6 +33,14 @@
 
 ---
 
+## Лимиты, образы и приоритет
+
+- **Образы запинены** на тег и digest (`tag@sha256:...`): `actions-runner:2.338.0` и `docker:29.9.0-dind` (multi-arch index, есть linux/amd64). Обновлять вручную: `crane digest <image>:<tag>`.
+- **Лимиты** (хост ограничен 16 GB RAM в WSL2): `idealista-5950x` runner 12 CPU / 8Gi, dind 4 CPU / 4Gi; `5950x-k8s` runner 2 CPU / 4Gi.
+- **Приоритет:** все runner-поды используют `priorityClassName: ci-runner-low` (value 1000, `preemptionPolicy: Never`). PriorityClass лежит в `manifests/priority/` и ставится Argo CD приложением `apps/github-runner-priority.yaml`.
+
+---
+
 ## 🛠️ Быстрый старт
 
 ### Шаг 1. Создайте токен GitHub и секрет в Kubernetes
