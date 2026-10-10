@@ -1,0 +1,27 @@
+# Values for gha-runner-scale-set (Idealista Tracker runner)
+githubConfigUrl: "https://github.com/Bafff/idealista-tracker"
+
+githubConfigSecret: arc-runner-secret
+
+runnerScaleSetName: "idealista-5950x"
+
+minRunners: 0
+maxRunners: 5
+
+controllerServiceAccount:
+  namespace: "arc-systems"
+  name: "arc-gha-rs-controller"
+
+template:
+  spec:
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:latest
+        command: ["/home/runner/run.sh"]
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 1Gi
+          limits:
+            cpu: 8000m
+            memory: 16Gi
