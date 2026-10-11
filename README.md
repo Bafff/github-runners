@@ -36,12 +36,13 @@
 ## Лимиты, образы и приоритет
 
 - **Образы запинены** на тег и digest (`tag@sha256:...`): `actions-runner:2.338.0` и `docker:29.9.0-dind` (multi-arch index, есть linux/amd64). Обновлять вручную: `crane digest <image>:<tag>`.
-- **Лимиты** (хост ограничен 16 GB RAM в WSL2): `idealista-5950x` (`maxRunners: 2`: pytest + одна лёгкая джоба, третья ждёт в очереди) runner 16 CPU / 8Gi (под `pytest -n 16`), dind 4 CPU / 4Gi; `5950x-k8s` runner 2 CPU / 4Gi.
+- **Лимиты** (хост ограничен 16 GB RAM в WSL2): `idealista-5950x` (`maxRunners: 2`, только джобы с Docker) runner 16 CPU / 8Gi (под `pytest -n 16`), dind 4 CPU / 4Gi; `idealista-5950x-light` (`maxRunners: 3`) runner 2 CPU / 2Gi; `5950x-k8s` runner 2 CPU / 4Gi.
 - **Limits не резервируют ресурсы.** Защита прод-нагрузки обеспечивается requests + PriorityClass (раннеры `ci-runner-low`, прод `prod-critical`) + kubelet eviction.
 - **Диск:** у idealista-раннера ephemeral-storage request 1Gi / limit 10Gi, у dind 1Gi / 20Gi; emptyDir `work` (10Gi) и `/var/lib/docker` (20Gi) имеют `sizeLimit`, чтобы разросшаяся сборка вытеснялась, а не заполняла VHDX WSL.
 - **Приоритет:** все runner-поды используют `priorityClassName: ci-runner-low`. Requires PriorityClass `ci-runner-low` from homelab-hosts PR #11; merge after it (под с несуществующим PriorityClass отклоняется на admission).
 
 - **Токен ServiceAccount:** `idealista-5950x` запускает код из PR, поэтому в его pod template стоит `automountServiceAccountToken: false` (у PR-кода нет кластерных учётных данных).
+- **Какой пул выбрать в `runs-on`** (Bafff/idealista-tracker): джобе нужен Docker (`services:`, `container:`, `docker build`/`compose`) или много CPU → `idealista-5950x`; нужен кластер → `idealista-5950x-deploy`; всё остальное (линтеры, проверки файлов, рендер манифестов) → `idealista-5950x-light`. Лёгкий пул без dind, requests 250m/512Mi, ephemeral-storage limit 5Gi, automount выключен (запускает код из PR). Ошибка заметна сразу: Docker-джоба на `-light` падает с `docker: not found`, а лёгкая джоба на `idealista-5950x` просто занимает один из двух dind-слотов, пока pytest ждёт.
 - **Deploy-пул `idealista-5950x-deploy`** (`runs-on: idealista-5950x-deploy`, репозиторий Bafff/idealista-tracker): обычный раннер без dind, requests 100m/256Mi, limits 1 CPU/1Gi, ephemeral-storage limit 2Gi, `maxRunners: 1`, automount включён, ServiceAccount `arc-runners/idealista-deployer` (создаётся здесь в `manifests/idealista-deployer/`, своих прав не имеет; Role привязывает homelab-hosts #15).
 
 ---
