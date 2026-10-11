@@ -38,7 +38,7 @@ template:
             memory: 2Gi
             ephemeral-storage: 1Gi
           limits:
-            cpu: 12000m
+            cpu: 16000m
             memory: 8Gi
             ephemeral-storage: 10Gi
       - name: dind
