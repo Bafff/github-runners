@@ -2,25 +2,27 @@ githubConfigUrl: "https://github.com/Bafff/idealista-tracker"
 githubConfigSecret: arc-runner-secret
 runnerScaleSetName: "idealista-5950x"
 minRunners: 0
-maxRunners: 5
+maxRunners: 2
 
 template:
   spec:
+    automountServiceAccountToken: false
+    priorityClassName: ci-runner-low
     initContainers:
       - name: init-network-mtu
-        image: docker:dind
+        image: docker:29.9.0-dind@sha256:0b6d18a4a222e71c88be6034926b4f6cde2fc33c2218643d03ccfddc65995470
         command: ["sh", "-c", "ip link set dev eth0 mtu 1280"]
         securityContext:
           privileged: true
       - name: init-dind-externals
-        image: ghcr.io/actions/actions-runner:latest
+        image: ghcr.io/actions/actions-runner:2.338.0@sha256:4ffadc0002b2581327e06101fc8c06cd189232baf79fe561fac9caeb76f5e807
         command: ["cp", "-r", "-v", "/home/runner/externals/.", "/home/runner/tmpDir/"]
         volumeMounts:
           - name: dind-externals
             mountPath: /home/runner/tmpDir
     containers:
       - name: runner
-        image: ghcr.io/actions/actions-runner:latest
+        image: ghcr.io/actions/actions-runner:2.338.0@sha256:4ffadc0002b2581327e06101fc8c06cd189232baf79fe561fac9caeb76f5e807
         command: ["/home/runner/run.sh"]
         env:
           - name: DOCKER_HOST
@@ -34,11 +36,13 @@ template:
           requests:
             cpu: 1000m
             memory: 2Gi
+            ephemeral-storage: 1Gi
           limits:
-            cpu: 16000m
-            memory: 20Gi
+            cpu: 12000m
+            memory: 8Gi
+            ephemeral-storage: 10Gi
       - name: dind
-        image: docker:dind
+        image: docker:29.9.0-dind@sha256:0b6d18a4a222e71c88be6034926b4f6cde2fc33c2218643d03ccfddc65995470
         args:
           - dockerd
           - --host=unix:///var/run/docker.sock
@@ -57,16 +61,24 @@ template:
             mountPath: /var/run
           - name: dind-externals
             mountPath: /home/runner/externals
+          - name: dind-storage
+            mountPath: /var/lib/docker
         resources:
           requests:
             cpu: 500m
             memory: 512Mi
+            ephemeral-storage: 1Gi
           limits:
             cpu: 4000m
             memory: 4Gi
+            ephemeral-storage: 20Gi
     volumes:
       - name: work
-        emptyDir: {}
+        emptyDir:
+          sizeLimit: 10Gi
+      - name: dind-storage
+        emptyDir:
+          sizeLimit: 20Gi
       - name: dind-sock
         emptyDir: {}
       - name: dind-externals
