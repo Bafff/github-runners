@@ -6,6 +6,7 @@ maxRunners: 2
 
 template:
   spec:
+    automountServiceAccountToken: false
     priorityClassName: ci-runner-low
     initContainers:
       - name: init-network-mtu

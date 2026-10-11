@@ -41,6 +41,9 @@
 - **Диск:** у idealista-раннера ephemeral-storage request 1Gi / limit 10Gi, у dind 1Gi / 20Gi; emptyDir `work` (10Gi) и `/var/lib/docker` (20Gi) имеют `sizeLimit`, чтобы разросшаяся сборка вытеснялась, а не заполняла VHDX WSL.
 - **Приоритет:** все runner-поды используют `priorityClassName: ci-runner-low`. Requires PriorityClass `ci-runner-low` from homelab-hosts PR #11; merge after it (под с несуществующим PriorityClass отклоняется на admission).
 
+- **Токен ServiceAccount:** `idealista-5950x` запускает код из PR, поэтому в его pod template стоит `automountServiceAccountToken: false` (у PR-кода нет кластерных учётных данных).
+- **Deploy-пул `idealista-5950x-deploy`** (`runs-on: idealista-5950x-deploy`, репозиторий Bafff/idealista-tracker): обычный раннер без dind, requests 100m/256Mi, limits 1 CPU/1Gi, ephemeral-storage limit 2Gi, `maxRunners: 1`, automount включён, ServiceAccount `arc-runners/idealista-deployer` (создаётся здесь в `manifests/idealista-deployer/`, своих прав не имеет; Role привязывает homelab-hosts #15).
+
 ---
 
 ## 🛠️ Быстрый старт

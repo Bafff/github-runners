@@ -1,0 +1,28 @@
+githubConfigUrl: "https://github.com/Bafff/idealista-tracker"
+githubConfigSecret: arc-runner-secret
+runnerScaleSetName: "idealista-5950x-deploy"
+minRunners: 0
+maxRunners: 1
+
+template:
+  spec:
+    priorityClassName: ci-runner-low
+    # Created by manifests/idealista-deployer/serviceaccount.yaml
+    serviceAccountName: idealista-deployer
+    automountServiceAccountToken: true
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:2.338.0@sha256:4ffadc0002b2581327e06101fc8c06cd189232baf79fe561fac9caeb76f5e807
+        command: ["/home/runner/run.sh"]
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+            ephemeral-storage: 2Gi
+
+controllerServiceAccount:
+  namespace: "arc-systems"
+  name: "arc-gha-rs-controller"
