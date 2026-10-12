@@ -68,7 +68,8 @@ template:
           - name: dind-storage
             mountPath: /var/lib/docker
         # dockerd plus the one postgres:15-alpine container that
-        # tests/test_migration_test_db_script.py starts: well under 1 GiB.
+        # tests/test_migration_test_db_script.py starts: an estimate, not a
+        # measured peak; if a run OOMs here, measure before raising.
         resources:
           requests:
             cpu: 500m
