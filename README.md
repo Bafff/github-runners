@@ -36,7 +36,7 @@
 ## Лимиты, образы и приоритет
 
 - **Образы запинены** на тег и digest (`tag@sha256:...`): `actions-runner:2.338.0` и `docker:29.9.0-dind` (multi-arch index, есть linux/amd64). Обновлять вручную: `crane digest <image>:<tag>`.
-- **Лимиты** (хост ограничен 16 GB RAM в WSL2): `idealista-5950x` (`maxRunners: 2`, только джобы с Docker) runner 16 CPU / 8Gi (под `pytest -n 16`), dind 4 CPU / 4Gi; `idealista-5950x-light` (`maxRunners: 3`) runner 2 CPU / 2Gi; `5950x-k8s` runner 2 CPU / 4Gi.
+- **Лимиты** (хост ограничен 16 GB RAM в WSL2): `idealista-5950x` (`maxRunners: 2`, только джобы с Docker) runner 8 CPU / 5Gi (под `pytest -n 4`, ~2.5 GiB по замеру 2026-10-12; 16 CPU / 8Gi под `-n 16` два пода рядом с продом не пережил k3d-контейнер), dind 2 CPU / 1536Mi (dockerd плюс один postgres-контейнер из `tests/test_migration_test_db_script.py`); `idealista-5950x-light` (`maxRunners: 3`) runner 2 CPU / 2Gi; `5950x-k8s` runner 2 CPU / 4Gi. С idealista-tracker#367 полный pytest идёт один раз на PR, так что два пода одновременно — исключение.
 - **Limits не резервируют ресурсы.** Защита прод-нагрузки обеспечивается requests + PriorityClass (раннеры `ci-runner-low`, прод `prod-critical`) + kubelet eviction.
 - **Диск:** у idealista-раннера ephemeral-storage request 1Gi / limit 10Gi, у dind 1Gi / 20Gi; emptyDir `work` (10Gi) и `/var/lib/docker` (20Gi) имеют `sizeLimit`, чтобы разросшаяся сборка вытеснялась, а не заполняла VHDX WSL.
 - **Приоритет:** все runner-поды используют `priorityClassName: ci-runner-low`. Requires PriorityClass `ci-runner-low` from homelab-hosts PR #11; merge after it (под с несуществующим PriorityClass отклоняется на admission).
