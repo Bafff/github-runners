@@ -5,8 +5,8 @@ runnerScaleSetName: "idealista-5950x-build"
 # smoke test, no pytest). Its own pool so a deploy never queues behind pytest on
 # idealista-5950x, and one runner always up, so it does not wait for a pod to be
 # scheduled either: an idle pod stays under its requests, which kubelet evicts last.
-minRunners: 1
-maxRunners: 1
+minRunners: 0
+maxRunners: 0
 
 template:
   spec:

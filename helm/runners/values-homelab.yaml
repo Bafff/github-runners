@@ -6,7 +6,7 @@ githubConfigSecret: arc-runner-secret
 runnerScaleSetName: "5950x-k8s"
 
 minRunners: 0
-maxRunners: 5
+maxRunners: 0
 
 template:
   spec:
