@@ -5,13 +5,19 @@ githubConfigUrl: "https://github.com/Bafff/idealista-tracker"
 githubConfigSecret: arc-runner-secret
 runnerScaleSetName: "idealista-5950x-light"
 minRunners: 0
-maxRunners: 0
+maxRunners: 4
 
 template:
   spec:
     # Runs pull-request code, like idealista-5950x: no cluster credentials.
     automountServiceAccountToken: false
     priorityClassName: ci-runner-low
+    # CI node of the 5950x cluster (homelab-hosts spec 2026-10-16-ci-node-p3600): tainted for runners,
+    # its own memory and disk (P3600). Production never lands there, so requests can equal the real peak.
+    nodeSelector:
+      homelab.dev/pool: ci
+    tolerations:
+      - {key: homelab.dev/pool, operator: Equal, value: ci, effect: NoSchedule}
     containers:
       - name: runner
         image: ghcr.io/actions/actions-runner:2.338.0@sha256:4ffadc0002b2581327e06101fc8c06cd189232baf79fe561fac9caeb76f5e807

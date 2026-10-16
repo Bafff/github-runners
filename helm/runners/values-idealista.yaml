@@ -2,12 +2,18 @@ githubConfigUrl: "https://github.com/Bafff/idealista-tracker"
 githubConfigSecret: arc-runner-secret
 runnerScaleSetName: "idealista-5950x"
 minRunners: 0
-maxRunners: 0
+maxRunners: 4
 
 template:
   spec:
     automountServiceAccountToken: false
     priorityClassName: ci-runner-low
+    # CI node of the 5950x cluster (homelab-hosts spec 2026-10-16-ci-node-p3600): tainted for runners,
+    # its own memory and disk (P3600). Production never lands there, so requests can equal the real peak.
+    nodeSelector:
+      homelab.dev/pool: ci
+    tolerations:
+      - {key: homelab.dev/pool, operator: Equal, value: ci, effect: NoSchedule}
     initContainers:
       - name: init-network-mtu
         image: docker:29.9.0-dind@sha256:0b6d18a4a222e71c88be6034926b4f6cde2fc33c2218643d03ccfddc65995470
@@ -27,23 +33,30 @@ template:
         env:
           - name: DOCKER_HOST
             value: unix:///var/run/docker.sock
+          # pytest -n auto takes its worker count from this (pytest-xdist reads it): the pod's CPU
+          # limit, not the 28 CPUs the container sees through the CFS quota.
+          - name: PYTEST_XDIST_AUTO_NUM_WORKERS
+            valueFrom:
+              resourceFieldRef:
+                containerName: runner
+                resource: limits.cpu
+                divisor: "1"
         volumeMounts:
           - name: work
             mountPath: /home/runner/_work
           - name: dind-sock
             mountPath: /var/run
-        # pytest runs with -n 4 (~2.5 GiB measured on 2026-10-12); 5 Gi leaves room
-        # for the mutation step and uv. 16 CPUs were for -n 16, which the shared
-        # 16 GB WSL node cannot feed. Since idealista-tracker#367 the suite runs once
-        # per PR, so two pods at once are the exception, not the rule.
+        # One runner uses the whole CI node (19 allocatable CPUs) when it runs alone; four share it.
+        # Memory is the real limit: -n 4 ~2.9 GiB, -n 8 ~4.4, -n 16 ~6.7 (idealista ci.yml), so -n 19
+        # ~7.6 GiB; requests = limits so the scheduler queues a fifth job instead of evicting.
         resources:
           requests:
-            cpu: 1000m
-            memory: 2Gi
+            cpu: 4000m
+            memory: 8Gi
             ephemeral-storage: 1Gi
           limits:
-            cpu: 8000m
-            memory: 5Gi
+            cpu: 19000m
+            memory: 8Gi
             ephemeral-storage: 10Gi
       - name: dind
         image: docker:29.9.0-dind@sha256:0b6d18a4a222e71c88be6034926b4f6cde2fc33c2218643d03ccfddc65995470
@@ -73,7 +86,7 @@ template:
         resources:
           requests:
             cpu: 500m
-            memory: 512Mi
+            memory: 1536Mi
             ephemeral-storage: 1Gi
           limits:
             cpu: 2000m

@@ -35,6 +35,8 @@
 
 ## Лимиты, образы и приоритет
 
+- **CI-нода (с окна 2026-10-16, homelab-hosts spec `2026-10-16-ci-node-p3600-design.md`).** Пулы `idealista-5950x`, `idealista-5950x-light` и `5950x-k8s` идут только на ноду `k3d-5950x-ci-0` (`nodeSelector` + toleration `homelab.dev/pool=ci`), build — предпочтительно туда, deploy — на сервере. На CI-ноде прода нет, поэтому у pytest-пула requests = limits (8 GiB runner + 1.5 GiB dind, `maxRunners: 4`), CPU limit 19 = вся нода, а `PYTEST_XDIST_AUTO_NUM_WORKERS` = лимит CPU пода (для `pytest -n auto`). Цифры ниже про 16 GB WSL — история до окна.
+
 - **Образы запинены** на тег и digest (`tag@sha256:...`): `actions-runner:2.338.0` и `docker:29.9.0-dind` (multi-arch index, есть linux/amd64). Обновлять вручную: `crane digest <image>:<tag>`.
 - **Лимиты** (хост ограничен 16 GB RAM в WSL2): `idealista-5950x` (`maxRunners: 1` с 2026-10-14: два pytest-пода по ~3 GiB вызывали eviction; только джобы с Docker) runner 8 CPU / 5Gi (под `pytest -n 8`; `-n 4` было ~2.5 GiB по замеру 2026-10-12; 16 CPU / 8Gi под `-n 16` два пода рядом с продом не пережил k3d-контейнер), dind 2 CPU / 1536Mi (dockerd плюс один postgres-контейнер из `tests/test_migration_test_db_script.py`); `idealista-5950x-light` (`maxRunners: 3`) runner 2 CPU / 2Gi; `5950x-k8s` runner 2 CPU / 4Gi. С idealista-tracker#367 полный pytest идёт один раз на PR, так что два пода одновременно — исключение.
 - **Limits не резервируют ресурсы.** Защита прод-нагрузки обеспечивается requests + PriorityClass (раннеры `ci-runner-low`, прод `prod-critical`) + kubelet eviction.
