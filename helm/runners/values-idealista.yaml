@@ -33,14 +33,11 @@ template:
         env:
           - name: DOCKER_HOST
             value: unix:///var/run/docker.sock
-          # pytest -n auto takes its worker count from this (pytest-xdist reads it): the pod's CPU
-          # limit, not the 28 CPUs the container sees through the CFS quota.
+          # pytest -n auto takes its worker count from this (pytest-xdist reads it): the CI node's 19
+          # allocatable CPUs, not the 28 CPUs WSL reports. Fixed because the pod has no CPU limit (CPU
+          # limits only by agreement, homelab-hosts AGENTS.md); the 12Gi memory below is sized for 19.
           - name: PYTEST_XDIST_AUTO_NUM_WORKERS
-            valueFrom:
-              resourceFieldRef:
-                containerName: runner
-                resource: limits.cpu
-                divisor: "1"
+            value: "19"
         volumeMounts:
           - name: work
             mountPath: /home/runner/_work
@@ -59,7 +56,6 @@ template:
             memory: 12Gi
             ephemeral-storage: 1Gi
           limits:
-            cpu: 19000m
             memory: 12Gi
             ephemeral-storage: 10Gi
       - name: dind
@@ -93,7 +89,6 @@ template:
             memory: 1536Mi
             ephemeral-storage: 1Gi
           limits:
-            cpu: 2000m
             memory: 1536Mi
             ephemeral-storage: 20Gi
     volumes:

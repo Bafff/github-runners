@@ -37,13 +37,10 @@ template:
         env:
           - name: DOCKER_HOST
             value: unix:///var/run/docker.sock
-          # cargo build jobs follow the pod's CPU limit, not the 28 CPUs WSL reports.
+          # Fixed, not the 28 CPUs WSL reports: the pod has no CPU limit (CPU limits only by
+          # agreement, homelab-hosts AGENTS.md), and more jobs would not fit the 6Gi memory below.
           - name: CARGO_BUILD_JOBS
-            valueFrom:
-              resourceFieldRef:
-                containerName: runner
-                resource: limits.cpu
-                divisor: "1"
+            value: "8"
         volumeMounts:
           - name: work
             mountPath: /home/runner/_work
@@ -58,7 +55,6 @@ template:
             memory: 6Gi
             ephemeral-storage: 2Gi
           limits:
-            cpu: 8000m
             memory: 6Gi
             ephemeral-storage: 20Gi
       - name: dind
@@ -90,7 +86,6 @@ template:
             memory: 1Gi
             ephemeral-storage: 1Gi
           limits:
-            cpu: 2000m
             memory: 1536Mi
             ephemeral-storage: 10Gi
     volumes:
