@@ -8,6 +8,11 @@ minRunners: 0
 maxRunners: 4
 
 template:
+  metadata:
+    labels:
+      # homelab-hosts sonarqube NetworkPolicy admits this label to SonarQube :9000
+      # for the advisory scanner job; the repository's SONAR_TOKEN scopes access.
+      homelab.dev/sonarqube-client: "true"
   spec:
     # Runs pull-request code, like idealista-5950x: no cluster credentials.
     automountServiceAccountToken: false

@@ -1,0 +1,110 @@
+# Bafff/pt309-clone CI (fmt, Clippy, Rust tests with coverage, Wasm, PostGIS crosscheck).
+# The repository went private on GitHub Free, where hosted-runner minutes are capped
+# (homelab-hosts docs/sonarqube). dind because the crosscheck job starts a postgis service.
+githubConfigUrl: "https://github.com/Bafff/pt309-clone"
+githubConfigSecret: arc-runner-secret
+runnerScaleSetName: "pt309-5950x"
+minRunners: 0
+# check, wasm and crosscheck run in parallel for one push.
+maxRunners: 3
+
+template:
+  spec:
+    # Runs pull-request code: no cluster credentials.
+    automountServiceAccountToken: false
+    priorityClassName: ci-runner-low
+    # CI node of the 5950x cluster (homelab-hosts spec 2026-10-16-ci-node-p3600).
+    nodeSelector:
+      homelab.dev/pool: ci
+    tolerations:
+      - {key: homelab.dev/pool, operator: Equal, value: ci, effect: NoSchedule}
+    initContainers:
+      - name: init-network-mtu
+        image: docker:29.9.0-dind@sha256:0b6d18a4a222e71c88be6034926b4f6cde2fc33c2218643d03ccfddc65995470
+        command: ["sh", "-c", "ip link set dev eth0 mtu 1280"]
+        securityContext:
+          privileged: true
+      - name: init-dind-externals
+        image: ghcr.io/actions/actions-runner:2.338.0@sha256:4ffadc0002b2581327e06101fc8c06cd189232baf79fe561fac9caeb76f5e807
+        command: ["cp", "-r", "-v", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+        volumeMounts:
+          - name: dind-externals
+            mountPath: /home/runner/tmpDir
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:2.338.0@sha256:4ffadc0002b2581327e06101fc8c06cd189232baf79fe561fac9caeb76f5e807
+        command: ["/home/runner/run.sh"]
+        env:
+          - name: DOCKER_HOST
+            value: unix:///var/run/docker.sock
+          # cargo build jobs follow the pod's CPU limit, not the 28 CPUs WSL reports.
+          - name: CARGO_BUILD_JOBS
+            valueFrom:
+              resourceFieldRef:
+                containerName: runner
+                resource: limits.cpu
+                divisor: "1"
+        volumeMounts:
+          - name: work
+            mountPath: /home/runner/_work
+          - name: dind-sock
+            mountPath: /var/run
+        # An estimate, not a measured peak: a cold workspace build with llvm-cov
+        # instrumentation and no shared cache. requests = limits for memory so excess
+        # jobs queue instead of evicting. Measure the first runs before tuning.
+        resources:
+          requests:
+            cpu: 2000m
+            memory: 6Gi
+            ephemeral-storage: 2Gi
+          limits:
+            cpu: 8000m
+            memory: 6Gi
+            ephemeral-storage: 20Gi
+      - name: dind
+        image: docker:29.9.0-dind@sha256:0b6d18a4a222e71c88be6034926b4f6cde2fc33c2218643d03ccfddc65995470
+        args:
+          - dockerd
+          - --host=unix:///var/run/docker.sock
+          - --group=$(DOCKER_GROUP_GID)
+          - --mtu=1280
+          - --default-network-opt=bridge=com.docker.network.driver.mtu=1280
+        env:
+          - name: DOCKER_GROUP_GID
+            value: "123"
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - name: work
+            mountPath: /home/runner/_work
+          - name: dind-sock
+            mountPath: /var/run
+          - name: dind-externals
+            mountPath: /home/runner/externals
+          - name: dind-storage
+            mountPath: /var/lib/docker
+        # dockerd plus one postgis/postgis:16-3.4 service container.
+        resources:
+          requests:
+            cpu: 250m
+            memory: 1Gi
+            ephemeral-storage: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 1536Mi
+            ephemeral-storage: 10Gi
+    volumes:
+      - name: work
+        emptyDir:
+          sizeLimit: 20Gi
+      - name: dind-storage
+        emptyDir:
+          sizeLimit: 10Gi
+      - name: dind-sock
+        emptyDir: {}
+      - name: dind-externals
+        emptyDir: {}
+
+controllerServiceAccount:
+  namespace: "arc-systems"
+  name: "arc-gha-rs-controller"
