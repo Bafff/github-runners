@@ -33,7 +33,16 @@ template:
     containers:
       - name: runner
         image: ghcr.io/actions/actions-runner:2.338.0@sha256:4ffadc0002b2581327e06101fc8c06cd189232baf79fe561fac9caeb76f5e807
-        command: ["/home/runner/run.sh"]
+        # dind is a plain sibling container, so nothing orders its start: wait for dockerd before
+        # taking a job, or the job's first docker step or service fails. No `$` here: Kubernetes
+        # expands $(...) in command.
+        command:
+          - sh
+          - -c
+          - >-
+            timeout 120 sh -c 'until docker info >/dev/null 2>&1; do sleep 1; done'
+            || { echo "dockerd not ready after 120s" >&2; exit 1; };
+            exec /home/runner/run.sh
         env:
           - name: DOCKER_HOST
             value: unix:///var/run/docker.sock
