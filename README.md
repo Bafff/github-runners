@@ -36,6 +36,7 @@
 ## Лимиты, образы и приоритет
 
 - **CPU-лимитов нет** ни у одного пула и у контроллера: ставить их можно только по явному согласованию с пользователем (homelab-hosts `AGENTS.md`). Requests по CPU и лимиты памяти/диска остаются.
+- **Пулы с dind ждут dockerd:** раннер запускает `run.sh` только после успешного `docker info` (до 120 с, иначе под завершается и ARC создаёт новый), потому что `dind` — обычный соседний контейнер и порядок старта не гарантирован. Иначе первая job холодного пода могла упасть на `services:` или первом `docker`-шаге (#11).
 - **CI-нода (с окна 2026-10-16, homelab-hosts spec `2026-10-16-ci-node-p3600-design.md`).** Пулы `idealista-5950x`, `idealista-5950x-light` и `5950x-k8s` идут только на ноду `k3d-5950x-ci-0` (`nodeSelector` + toleration `homelab.dev/pool=ci`), build — предпочтительно туда, deploy — на сервере. На CI-ноде прода нет, поэтому у pytest-пула requests = limits по памяти (12 GiB runner + 1.5 GiB dind, `maxRunners: 4`), CPU-лимитов нет, а `PYTEST_XDIST_AUTO_NUM_WORKERS` зафиксирован на 19 = allocatable CPU ноды (для `pytest -n auto`). Цифры ниже про 16 GB WSL — история до окна.
 
 - **Образы запинены** на тег и digest (`tag@sha256:...`): `actions-runner:2.338.0` и `docker:29.9.0-dind` (multi-arch index, есть linux/amd64). Обновлять вручную: `crane digest <image>:<tag>`.
