@@ -48,9 +48,10 @@ template:
             mountPath: /home/runner/_work
           - name: dind-sock
             mountPath: /var/run
-        # An estimate, not a measured peak: a cold workspace build with llvm-cov
-        # instrumentation and no shared cache. requests = limits for memory so excess
-        # jobs queue instead of evicting. Measure the first runs before tuning.
+        # cgroup memory.peak, page cache included, one run on 2026-10-17 (run 39079926810):
+        # check 4.0G, web 3.9G, wasm 3.6G, crosscheck 2.6G. web (npm ci, Vitest coverage,
+        # Vite build) is as heavy as the Rust jobs. requests = limits for memory so excess
+        # jobs queue instead of evicting.
         resources:
           requests:
             cpu: 2000m
@@ -81,7 +82,8 @@ template:
             mountPath: /home/runner/externals
           - name: dind-storage
             mountPath: /var/lib/docker
-        # dockerd plus one postgis/postgis:16-3.4 service container.
+        # dockerd plus one postgis/postgis:16-3.4 service container: 0.88G peak in
+        # crosscheck and web, 0.02G in check and wasm (same run as above).
         resources:
           requests:
             cpu: 250m
