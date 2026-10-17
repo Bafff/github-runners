@@ -1,0 +1,114 @@
+# Bafff/leiloes-radar CI (.github/workflows/ci.yaml, one job `test`): ruff, yamllint, serial pytest over
+# unit + integration tests, docker build and smoke run of the scraper image. The repository is private on
+# GitHub Free and hosted runs stopped on billing, so CI moves here. dind because the job starts a
+# postgres service (127.0.0.1:5432 through the shared pod network namespace) and runs docker build/run.
+githubConfigUrl: "https://github.com/Bafff/leiloes-radar"
+githubConfigSecret: arc-runner-secret
+runnerScaleSetName: "leiloes-5950x"
+minRunners: 0
+# One job per workflow run; a pull request and a push to main can overlap.
+maxRunners: 2
+
+template:
+  spec:
+    # Runs pull-request code: no cluster credentials.
+    automountServiceAccountToken: false
+    priorityClassName: ci-runner-low
+    # CI node of the 5950x cluster (homelab-hosts spec 2026-10-16-ci-node-p3600).
+    nodeSelector:
+      homelab.dev/pool: ci
+    tolerations:
+      - {key: homelab.dev/pool, operator: Equal, value: ci, effect: NoSchedule}
+    initContainers:
+      - name: init-network-mtu
+        image: docker:29.9.0-dind@sha256:0b6d18a4a222e71c88be6034926b4f6cde2fc33c2218643d03ccfddc65995470
+        command: ["sh", "-c", "ip link set dev eth0 mtu 1280"]
+        securityContext:
+          privileged: true
+      - name: init-dind-externals
+        image: ghcr.io/actions/actions-runner:2.338.0@sha256:4ffadc0002b2581327e06101fc8c06cd189232baf79fe561fac9caeb76f5e807
+        command: ["cp", "-r", "-v", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+        volumeMounts:
+          - name: dind-externals
+            mountPath: /home/runner/tmpDir
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:2.338.0@sha256:4ffadc0002b2581327e06101fc8c06cd189232baf79fe561fac9caeb76f5e807
+        # dind is a plain sibling container, so nothing orders its start: wait for dockerd before
+        # taking a job, or the postgres service of the first job fails. No `$` here: Kubernetes
+        # expands $(...) in command.
+        command:
+          - sh
+          - -c
+          - >-
+            timeout 120 sh -c 'until docker info >/dev/null 2>&1; do sleep 1; done'
+            || { echo "dockerd not ready after 120s" >&2; exit 1; };
+            exec /home/runner/run.sh
+        env:
+          - name: DOCKER_HOST
+            value: unix:///var/run/docker.sock
+        volumeMounts:
+          - name: work
+            mountPath: /home/runner/_work
+          - name: dind-sock
+            mountPath: /var/run
+        # An estimate, not a measured CI peak: CI runs pytest in one process (no -n), and the local
+        # `make test-unit` (-n 4) peaked at ~370 MB RSS per process on 2026-10-17. 2Gi covers pip
+        # install, the serial suite with integration tests and Runner.Worker. requests = limits for
+        # memory so excess jobs queue instead of evicting. No CPU limit (only by agreement,
+        # homelab-hosts AGENTS.md). Measure the first runs before tuning.
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 2Gi
+            ephemeral-storage: 1Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 10Gi
+      - name: dind
+        image: docker:29.9.0-dind@sha256:0b6d18a4a222e71c88be6034926b4f6cde2fc33c2218643d03ccfddc65995470
+        args:
+          - dockerd
+          - --host=unix:///var/run/docker.sock
+          - --group=$(DOCKER_GROUP_GID)
+          - --mtu=1280
+          - --default-network-opt=bridge=com.docker.network.driver.mtu=1280
+        env:
+          - name: DOCKER_GROUP_GID
+            value: "123"
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - name: work
+            mountPath: /home/runner/_work
+          - name: dind-sock
+            mountPath: /var/run
+          - name: dind-externals
+            mountPath: /home/runner/externals
+          - name: dind-storage
+            mountPath: /var/lib/docker
+        # dockerd, the postgres:18.4 service container and BuildKit running pip install for the
+        # python:3.14.6-slim scraper image: an estimate, not a measured peak.
+        resources:
+          requests:
+            cpu: 500m
+            memory: 2Gi
+            ephemeral-storage: 1Gi
+          limits:
+            memory: 2Gi
+            ephemeral-storage: 10Gi
+    volumes:
+      - name: work
+        emptyDir:
+          sizeLimit: 10Gi
+      - name: dind-storage
+        emptyDir:
+          sizeLimit: 10Gi
+      - name: dind-sock
+        emptyDir: {}
+      - name: dind-externals
+        emptyDir: {}
+
+controllerServiceAccount:
+  namespace: "arc-systems"
+  name: "arc-gha-rs-controller"
