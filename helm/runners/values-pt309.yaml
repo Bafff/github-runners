@@ -5,8 +5,10 @@ githubConfigUrl: "https://github.com/Bafff/pt309-clone"
 githubConfigSecret: arc-runner-secret
 runnerScaleSetName: "pt309-5950x"
 minRunners: 0
-# check, wasm and crosscheck run in parallel for one push.
-maxRunners: 3
+# check, wasm, crosscheck and web run in parallel for one push; 6 lets a second push or PR
+# start before the first finishes. At 7 GiB requests per pod, 6 take ~42 of the CI node's
+# ~50 GiB Allocatable; pods that do not fit beside the other CI pools wait in Pending.
+maxRunners: 6
 
 template:
   spec:
