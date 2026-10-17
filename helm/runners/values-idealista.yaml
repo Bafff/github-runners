@@ -46,17 +46,21 @@ template:
             mountPath: /home/runner/_work
           - name: dind-sock
             mountPath: /var/run
-        # One runner uses the whole CI node (19 allocatable CPUs) when it runs alone; four share it.
-        # Memory is the real limit: -n 4 ~2.9 GiB, -n 8 ~4.4, -n 16 ~6.7 (idealista ci.yml), so -n 19
-        # ~7.6 GiB; requests = limits so the scheduler queues a fifth job instead of evicting.
+        # One runner uses the whole CI node (19 allocatable CPUs) when it runs alone; up to three fit in
+        # the node's ~50 GiB Allocatable memory at 13.5 GiB per pod (12 GiB runner + 1.5 GiB dind), and a
+        # fourth queues in Pending until a slot frees.
+        # Memory is the real limit: -n 4 ~2.9 GiB, -n 8 ~4.4, -n 16 ~6.7 (idealista ci.yml); -n 19 hit the
+        # 8 GiB cgroup limit (19 workers + pytest controller + Runner.Worker + kernel slab/pagetables), so
+        # 12 GiB gives ~3.5-4 GiB of headroom. requests = limits so the scheduler queues excess jobs
+        # instead of evicting running pods.
         resources:
           requests:
             cpu: 4000m
-            memory: 8Gi
+            memory: 12Gi
             ephemeral-storage: 1Gi
           limits:
             cpu: 19000m
-            memory: 8Gi
+            memory: 12Gi
             ephemeral-storage: 10Gi
       - name: dind
         image: docker:29.9.0-dind@sha256:0b6d18a4a222e71c88be6034926b4f6cde2fc33c2218643d03ccfddc65995470
