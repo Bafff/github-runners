@@ -2,7 +2,8 @@ githubConfigUrl: "https://github.com/Bafff/idealista-tracker"
 githubConfigSecret: arc-runner-secret
 runnerScaleSetName: "idealista-5950x-deploy"
 minRunners: 0
-maxRunners: 1
+# Maintenance homelab-hosts#110: restore maxRunners: 1 after prod resize.
+maxRunners: 0
 
 template:
   spec:

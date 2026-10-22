@@ -6,7 +6,8 @@ githubConfigSecret: arc-runner-secret
 runnerScaleSetName: "5950x-k8s"
 
 minRunners: 0
-maxRunners: 5
+# Maintenance homelab-hosts#110: restore maxRunners: 5 after prod resize.
+maxRunners: 0
 
 template:
   spec:
