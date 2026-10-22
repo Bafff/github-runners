@@ -7,8 +7,7 @@ githubConfigSecret: arc-runner-secret
 runnerScaleSetName: "leiloes-5950x"
 minRunners: 0
 # One job per workflow run; a pull request and a push to main can overlap.
-# Maintenance homelab-hosts#110: restore maxRunners: 2 after prod resize.
-maxRunners: 0
+maxRunners: 2
 
 template:
   spec:
