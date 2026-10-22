@@ -6,7 +6,8 @@ githubConfigSecret: arc-runner-secret
 runnerScaleSetName: "owl-docs-5950x"
 minRunners: 0
 # test and image run in parallel for one push.
-maxRunners: 2
+# Maintenance homelab-hosts#110: restore maxRunners: 2 after prod resize.
+maxRunners: 0
 
 template:
   spec:
