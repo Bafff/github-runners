@@ -6,8 +6,7 @@ githubConfigUrl: "https://github.com/Bafff/gigs-radar"
 githubConfigSecret: arc-runner-secret
 runnerScaleSetName: "gigs-radar-5950x"
 minRunners: 0
-# Maintenance homelab-hosts#110: restore maxRunners: 2 after prod resize.
-maxRunners: 0
+maxRunners: 2
 
 template:
   spec:

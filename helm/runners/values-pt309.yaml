@@ -8,8 +8,7 @@ minRunners: 0
 # check, wasm, crosscheck and web run in parallel for one push; 6 lets a second push or PR
 # start before the first finishes. At 7 GiB requests per pod, 6 take ~42 of the CI node's
 # ~50 GiB Allocatable; pods that do not fit beside the other CI pools wait in Pending.
-# Maintenance homelab-hosts#110: restore maxRunners: 6 after prod resize.
-maxRunners: 0
+maxRunners: 6
 
 template:
   spec:
