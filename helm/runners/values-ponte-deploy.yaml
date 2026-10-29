@@ -1,0 +1,29 @@
+# Trusted Ponte deploy jobs only; no PR code or Docker.
+# Resource values copied from Idealista deploy are estimates until measured.
+githubConfigUrl: "https://github.com/Bafff/voice-call-translator-pt"
+githubConfigSecret: arc-runner-secret
+runnerScaleSetName: "ponte-5950x-deploy"
+minRunners: 0
+maxRunners: 1
+
+template:
+  spec:
+    priorityClassName: ci-runner-low
+    # Created by manifests/ponte-deployer/serviceaccount.yaml
+    serviceAccountName: ponte-deployer
+    automountServiceAccountToken: true
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:2.338.0@sha256:4ffadc0002b2581327e06101fc8c06cd189232baf79fe561fac9caeb76f5e807
+        command: ["/home/runner/run.sh"]
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 1Gi
+            ephemeral-storage: 2Gi
+
+controllerServiceAccount:
+  namespace: "arc-systems"
+  name: "arc-gha-rs-controller"

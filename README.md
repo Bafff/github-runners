@@ -56,6 +56,14 @@
 - **CI-пул `buy-claude-5950x`** (`runs-on: buy-claude-5950x`, репозиторий Bafff/buy-claude): hosted CI не стартует из-за billing. `tests` запускает pytest, `image` собирает образ, проверяет настоящий native Camoufox без сети и API, затем публикует SHA image только из `main`. Dind, `minRunners: 0`, `maxRunners: 2`, CI-нода, automount выключен. Runner и dind: CPU request 500m без CPU limit, память request/limit 3Gi, work и Docker emptyDir по 20Gi. Это запас для сборки браузерного образа, а не замер. Секрет регистрации общий существующий `arc-runner-secret`; cluster credentials в job не передаются.
 - **Метка `homelab.dev/sonarqube-client: "true"`** на `idealista-5950x-light`: NetworkPolicy SonarQube в homelab-hosts пропускает к `:9000` только pods с этой меткой из `arc-runners`. Её получает advisory job `sonarqube` idealista-tracker; права ограничивает `SONAR_TOKEN` репозитория (Browse+Scan одного проекта).
 
+
+## Ponte (`Bafff/voice-call-translator-pt`)
+
+- CI, тесты и Docker build/smoke: `runs-on: ponte-5950x`, ephemeral DinD, 0–2 раннера на CI-ноде, `ci-runner-low`, `automountServiceAccountToken: false`. Runner requests 500m/1Gi, dind 500m/2Gi; память requests = limits, ephemeral-storage request 1Gi / limit 10Gi у каждого, work и Docker emptyDir по 10Gi. Это оценки из gigs-radar, не замеры Ponte; CPU-лимитов нет. Перед job раннер ждёт dockerd до 120 с.
+- Только доверенные deploy jobs: `runs-on: ponte-5950x-deploy`, 0–1 раннер без Docker, `ci-runner-low`, ServiceAccount `arc-runners/ponte-deployer`, automount включён. Не направлять сюда PR-код. Requests 100m/256Mi, limits памяти 1Gi и ephemeral-storage 2Gi, без CPU-лимита — оценки из Idealista deploy. SA создаётся на sync-wave 1, пулы — на wave 2. **Прикладного RBAC пока нет:** scoped permissions придут отдельным PR в homelab-hosts; до него кластерные deploy-проверки не готовы.
+- Оба пула используют существующий `arc-runner-secret`; новый PAT не нужен. Сохранены ARC 0.15.0 и digest pins runner 2.338.0 / Docker 29.9.0. Существующий homelab `github-runners-argocd-root` подхватит `apps/` после merge: новая root-регистрация и ручной apply не нужны.
+- Native Mac runner остаётся отдельным, по паттерну Idealista `iphone`. Временный host runner на `5950x-wsl` сохраняется до успешной ARC CI job и подтверждения, что host runner idle.
+
 ---
 
 ## 🛠️ Быстрый старт
