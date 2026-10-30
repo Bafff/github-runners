@@ -3,8 +3,8 @@
 githubConfigUrl: "https://github.com/Bafff/voice-call-translator-pt"
 githubConfigSecret: arc-runner-secret
 runnerScaleSetName: "ponte-5950x"
-minRunners: 0
-maxRunners: 2
+minRunners: 1
+maxRunners: 3
 
 template:
   spec:
