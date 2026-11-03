@@ -10,6 +10,8 @@ maxRunners: 5
 
 template:
   spec:
+    # Runs pull-request code of Bafff/homelab-hosts (terraform-tailscale validate job): no cluster credentials.
+    automountServiceAccountToken: false
     priorityClassName: ci-runner-low
     # CI node of the 5950x cluster (homelab-hosts spec 2026-10-16-ci-node-p3600): tainted for runners,
     # its own memory and disk (P3600). Production never lands there, so requests can equal the real peak.
