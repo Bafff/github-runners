@@ -1,9 +1,9 @@
-# Bafff/eschooling-sync CI (.github/workflows/ci.yaml): job `test` (pytest), job `image`
-# (docker build + smoke run) and job `publish` (push to GHCR on main). The repository is
+# Bafff/homelab-bots CI (.github/workflows/ci.yaml): job `repo` (layout tests, changed bots) and a matrix
+# job `bot` per changed bot (pytest, docker build + smoke, push to GHCR on main). The repository is
 # private on GitHub Free and hosted runs stopped on billing, so CI runs here. dind for the image job.
-githubConfigUrl: "https://github.com/Bafff/eschooling-sync"
+githubConfigUrl: "https://github.com/Bafff/homelab-bots"
 githubConfigSecret: arc-runner-secret
-runnerScaleSetName: "eschooling-sync-5950x"
+runnerScaleSetName: "homelab-bots-5950x"
 minRunners: 0
 # test and image run in parallel for one push.
 maxRunners: 2

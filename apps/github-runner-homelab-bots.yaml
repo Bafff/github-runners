@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: github-runner-eschooling-sync
+  name: github-runner-homelab-bots
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "2"
@@ -14,9 +14,9 @@ spec:
       chart: gha-runner-scale-set
       targetRevision: 0.15.0
       helm:
-        releaseName: "runner-eschooling-sync"
+        releaseName: "runner-homelab-bots"
         valueFiles:
-          - $values/helm/runners/values-eschooling-sync.yaml
+          - $values/helm/runners/values-homelab-bots.yaml
     - repoURL: https://github.com/Bafff/github-runners.git
       targetRevision: HEAD
       ref: values
