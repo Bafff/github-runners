@@ -4,7 +4,11 @@
 # postgres service (127.0.0.1:5432 through the shared pod network namespace) and runs docker build/run.
 githubConfigUrl: "https://github.com/Bafff/leiloes-radar"
 githubConfigSecret: arc-runner-secret
-runnerScaleSetName: "leiloes-5950x"
+# `runs-on: leiloes-ci` means any Radar runner: this pool, and the host runners on nitro and the Mac
+# (Bafff/homelab-hosts hosts/nitro, hosts/alexs-macbook-pro/ci) register with the same label. ARC
+# sets a scale set's labels only when it creates it, and this name is its only label. Until
+# 2026-11-09 the pool was called leiloes-5950x.
+runnerScaleSetName: "leiloes-ci"
 minRunners: 0
 # One job per workflow run; a pull request and a push to main can overlap.
 maxRunners: 2
