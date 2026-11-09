@@ -5,6 +5,12 @@
 githubConfigUrl: "https://github.com/Bafff/leiloes-radar"
 githubConfigSecret: arc-runner-secret
 runnerScaleSetName: "leiloes-5950x"
+# The leiloes CI job asks for `runs-on: leiloes-ci`, which this pool and the emergency runner on the
+# Mac (local/mac-ci-runner) share. The pool's own name stays in the list so runs whose ci.yaml
+# still says `runs-on: leiloes-5950x` (main and open PRs until they pick up the change) keep a runner.
+scaleSetLabels:
+  - leiloes-5950x
+  - leiloes-ci
 minRunners: 0
 # One job per workflow run; a pull request and a push to main can overlap.
 maxRunners: 2

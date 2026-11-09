@@ -67,6 +67,11 @@
 - Оба пула используют существующий `arc-runner-secret`; новый PAT не нужен. Сохранены ARC 0.15.0 и digest pins runner 2.338.0 / Docker 29.9.0. Существующий homelab `github-runners-argocd-root` подхватит `apps/` после merge: новая root-регистрация и ручной apply не нужны.
 - Native Mac runner остаётся отдельным, по паттерну Idealista `iphone`. Временный host runner на `5950x-wsl` сохраняется до успешной ARC CI job и подтверждения, что host runner idle.
 
+## leiloes-radar (`Bafff/leiloes-radar`)
+
+- CI: `runs-on: leiloes-ci`. Этот лейбл есть у ARC-пула `leiloes-5950x` (`scaleSetLabels` в `values-leiloes.yaml`, рядом оставлено и старое имя пула для прогонов со старым `ci.yaml`) и у аварийного раннера на Mac.
+- Аварийный раннер на Mac: `local/mac-ci-runner/` (README там). Включается руками, когда пул упирается в память CI-ноды (под `leiloes-5950x` в `Pending: Insufficient memory`), и выключается, когда очередь разошлась.
+
 ---
 
 ## 🛠️ Быстрый старт
