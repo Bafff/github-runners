@@ -69,8 +69,8 @@
 
 ## leiloes-radar (`Bafff/leiloes-radar`)
 
-- CI: `runs-on: leiloes-ci`. Этот лейбл есть у ARC-пула `leiloes-5950x` (`scaleSetLabels` в `values-leiloes.yaml`, рядом оставлено и старое имя пула для прогонов со старым `ci.yaml`) и у аварийного раннера на Mac.
-- Аварийный раннер на Mac: `local/mac-ci-runner/` (README там). Включается руками, когда пул упирается в память CI-ноды (под `leiloes-5950x` в `Pending: Insufficient memory`), и выключается, когда очередь разошлась.
+- CI: `runs-on: leiloes-5950x`, ARC-пул `values-leiloes.yaml` на CI-ноде.
+- Аварийный раннер на Mac: `local/mac-ci-runner/` (README там). Регистрируется с тем же лейблом `leiloes-5950x` и берёт job, когда пул упирается в память CI-ноды (под `leiloes-5950x` в `Pending: Insufficient memory`). Включается и выключается руками.
 
 ---
 

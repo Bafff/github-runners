@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Emergency CI capacity on the Mac: one ephemeral GitHub Actions runner in Docker Desktop for a
-# repository whose ARC pool is short of memory (first user: Bafff/leiloes-radar, label leiloes-ci).
+# repository whose ARC pool is short of memory (first user: Bafff/leiloes-radar). The runner takes the
+# pool's own name as its label, so jobs with `runs-on: leiloes-5950x` go to whichever is free; no
+# change to the pool or the workflow (checked 2026-11-09: a queued job was handed to the Mac).
 # The layout copies the ARC dind pod (helm/runners/values-leiloes.yaml): a privileged dockerd
 # container, and a runner container in its network namespace, so a job's `services:` port
 # (127.0.0.1:5432) is reachable exactly as in the pod. Memory limits match the pod's.
@@ -16,7 +18,7 @@
 set -euo pipefail
 
 REPO=${REPO:-Bafff/leiloes-radar}
-LABEL=${LABEL:-leiloes-ci}
+LABEL=${LABEL:-leiloes-5950x}
 PREFIX=${PREFIX:-leiloes-ci}
 # The pod's images (values-leiloes.yaml); both digests are multi-arch indexes with arm64.
 RUNNER_IMAGE=ghcr.io/actions/actions-runner:2.338.0@sha256:4ffadc0002b2581327e06101fc8c06cd189232baf79fe561fac9caeb76f5e807
