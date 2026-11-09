@@ -1,0 +1,46 @@
+# The `route` job of Bafff/idealista-tracker's CI (tools/ci/route_pytest.py): it picks
+# idealista-5950x or nitro for `pytest` in a few seconds, before pytest can start, so it
+# must not queue. On 2026-11-09 the CI node's memory requests were at 99 % (three 13.5 GiB
+# pytest pods) and idealista-5950x-light pods (512Mi) stayed Pending for minutes, holding
+# pytest behind them. One warm pod with a small request schedules where those do not.
+# Python 3.12 of the runner image and git only: no docker, no cluster, no dependencies.
+githubConfigUrl: "https://github.com/Bafff/idealista-tracker"
+githubConfigSecret: arc-runner-secret
+runnerScaleSetName: "idealista-5950x-route"
+minRunners: 1
+maxRunners: 2
+
+template:
+  spec:
+    # Runs pull-request code: no cluster credentials.
+    automountServiceAccountToken: false
+    priorityClassName: ci-runner-low
+    nodeSelector:
+      homelab.dev/pool: ci
+    tolerations:
+      - {key: homelab.dev/pool, operator: Equal, value: ci, effect: NoSchedule}
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:2.338.0@sha256:4ffadc0002b2581327e06101fc8c06cd189232baf79fe561fac9caeb76f5e807
+        command: ["/home/runner/run.sh"]
+        volumeMounts:
+          - name: work
+            mountPath: /home/runner/_work
+        # An estimate, not a measured peak: the runner, a depth-2 checkout and a stdlib script.
+        # No CPU limit (only by agreement, homelab-hosts AGENTS.md).
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+            ephemeral-storage: 512Mi
+          limits:
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+    volumes:
+      - name: work
+        emptyDir:
+          sizeLimit: 2Gi
+
+controllerServiceAccount:
+  namespace: "arc-systems"
+  name: "arc-gha-rs-controller"
