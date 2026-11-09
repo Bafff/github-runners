@@ -71,7 +71,7 @@
 ## leiloes-radar (`Bafff/leiloes-radar`)
 
 - CI: `runs-on: leiloes-5950x`, ARC-пул `values-leiloes.yaml` на CI-ноде.
-- Аварийный раннер на Mac: `local/mac-ci-runner/` (README там). Регистрируется с тем же лейблом `leiloes-5950x` и берёт job, когда пул упирается в память CI-ноды (под `leiloes-5950x` в `Pending: Insufficient memory`). Включается и выключается руками.
+- Mac по требованию: Bafff/homelab-hosts `hosts/alexs-macbook-pro/ci` (`mac-ci.sh up|down|status`), схема nitro — Radar-раннер с тем же лейблом `leiloes-5950x` и раннер idealista-tracker `mac-ci`, одна тяжёлая job за раз через шлюз.
 
 ---
 
