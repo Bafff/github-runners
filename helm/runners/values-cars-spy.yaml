@@ -53,16 +53,18 @@ template:
             mountPath: /home/runner/_work
           - name: dind-sock
             mountPath: /var/run
-        # Initial estimate before the first CI runs, not a measured peak: measure and tune after
-        # `Bafff/cars-spy` CI lands (`runner` drives git/docker CLI; heavy Rust builds run in `dind`).
+        # Measured 2026-11-18 on `Bafff/cars-spy`: `runner` only runs git, `uvx yamllint`,
+        # kustomize, and the docker CLI (~200 MiB RSS), while Rust/ONNX compile + PG18 tests +
+        # `--release` LTO image build run inside `dind` (`anon+kernel` peak 1,423 MiB, cgroup
+        # `memory.peak` 3,762 MiB incl. page cache, `/var/lib/docker` 6.96 GB).
         resources:
           requests:
-            cpu: "1"
-            memory: 2Gi
+            cpu: 500m
+            memory: 1Gi
             ephemeral-storage: 1Gi
           limits:
-            memory: 2Gi
-            ephemeral-storage: 15Gi
+            memory: 1Gi
+            ephemeral-storage: 5Gi
       - name: dind
         image: docker:29.9.0-dind@sha256:0b6d18a4a222e71c88be6034926b4f6cde2fc33c2218643d03ccfddc65995470
         args:
@@ -96,7 +98,7 @@ template:
     volumes:
       - name: work
         emptyDir:
-          sizeLimit: 15Gi
+          sizeLimit: 5Gi
       - name: dind-storage
         emptyDir:
           sizeLimit: 15Gi

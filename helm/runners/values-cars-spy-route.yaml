@@ -1,0 +1,44 @@
+# The checkout-free `route` job of Bafff/cars-spy's CI: reserves warm persistent `nitro`
+# (`cars-spy-nitro`, ~55 s PR runs) via `nitro-ci-gate` when idle, or spills over immediately
+# to ephemeral `cars-spy-5950x` DinD when `nitro` is busy or unreachable.
+# Kept at `minRunners: 1` with a tiny footprint (no DinD, stdlib Python 3.12 only) so routing
+# finishes in ~2 s without waiting on DinD pod boot or competing for CI-node memory.
+githubConfigUrl: "https://github.com/Bafff/cars-spy"
+githubConfigSecret: arc-runner-secret
+runnerScaleSetName: "cars-spy-5950x-route"
+minRunners: 1
+maxRunners: 2
+
+template:
+  spec:
+    # Runs pull-request workflow definitions: no cluster credentials.
+    automountServiceAccountToken: false
+    priorityClassName: ci-runner-low
+    nodeSelector:
+      homelab.dev/pool: ci
+    tolerations:
+      - {key: homelab.dev/pool, operator: Equal, value: ci, effect: NoSchedule}
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:2.338.0@sha256:4ffadc0002b2581327e06101fc8c06cd189232baf79fe561fac9caeb76f5e807
+        command: ["/home/runner/run.sh"]
+        volumeMounts:
+          - name: work
+            mountPath: /home/runner/_work
+        # Checkout-free stdlib Python HTTP POST to nitro-ci-gate; no CPU limit (homelab-hosts AGENTS.md).
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+            ephemeral-storage: 256Mi
+          limits:
+            memory: 256Mi
+            ephemeral-storage: 1Gi
+    volumes:
+      - name: work
+        emptyDir:
+          sizeLimit: 1Gi
+
+controllerServiceAccount:
+  namespace: "arc-systems"
+  name: "arc-gha-rs-controller"
