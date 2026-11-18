@@ -1,4 +1,4 @@
-# Bafff/cars-spy CI: Rust + ONNX checks/tests and Docker image build/smoke jobs. Ephemeral DinD pool.
+# Bafff/cars-spy spillover CI (`cars-spy-nitro` overflow) and `Release` pool: ephemeral DinD for Rust + ONNX checks/tests and GHCR image builds.
 githubConfigUrl: "https://github.com/Bafff/cars-spy"
 githubConfigSecret: arc-runner-secret
 runnerScaleSetName: "cars-spy-5950x"
@@ -42,10 +42,9 @@ template:
         env:
           - name: DOCKER_HOST
             value: unix:///var/run/docker.sock
-          # Applies only to cargo processes launched directly in `runner`. `docker build` runs
-          # inside BuildKit in `dind` and does not inherit this env, so `Bafff/cars-spy`'s
-          # Dockerfile also sets `ENV CARGO_BUILD_JOBS=4` to stay within `dind`'s 4Gi memory limit
-          # (no CPU limit per homelab-hosts AGENTS.md).
+          # Single source of truth for parallelism on `5950x` (`4`, vs `3` on `nitro-wsl-cars-spy`):
+          # forwarded into toolchain containers by `tools/test-suite.sh` (`-e CARGO_BUILD_JOBS`) and
+          # into BuildKit by `ci.yaml` / `tools/release/image.sh` (`--build-arg CARGO_BUILD_JOBS`).
           - name: CARGO_BUILD_JOBS
             value: "4"
         volumeMounts:
@@ -53,16 +52,18 @@ template:
             mountPath: /home/runner/_work
           - name: dind-sock
             mountPath: /var/run
-        # Initial estimate before the first CI runs, not a measured peak: measure and tune after
-        # `Bafff/cars-spy` CI lands (`runner` drives git/docker CLI; heavy Rust builds run in `dind`).
+        # Measured 2026-11-18 on `Bafff/cars-spy`: `runner` only runs git, `uvx yamllint`,
+        # kustomize, and the docker CLI (~200 MiB RSS), while Rust/ONNX compile + PG18 tests +
+        # `--release` LTO image build run inside `dind` (`anon+kernel` peak 1,423 MiB, cgroup
+        # `memory.peak` 3,762 MiB incl. page cache, `/var/lib/docker` 6.96 GB).
         resources:
           requests:
-            cpu: "1"
-            memory: 2Gi
+            cpu: 500m
+            memory: 1Gi
             ephemeral-storage: 1Gi
           limits:
-            memory: 2Gi
-            ephemeral-storage: 15Gi
+            memory: 1Gi
+            ephemeral-storage: 5Gi
       - name: dind
         image: docker:29.9.0-dind@sha256:0b6d18a4a222e71c88be6034926b4f6cde2fc33c2218643d03ccfddc65995470
         args:
@@ -96,7 +97,7 @@ template:
     volumes:
       - name: work
         emptyDir:
-          sizeLimit: 15Gi
+          sizeLimit: 5Gi
       - name: dind-storage
         emptyDir:
           sizeLimit: 15Gi
