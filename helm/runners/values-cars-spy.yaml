@@ -42,8 +42,10 @@ template:
         env:
           - name: DOCKER_HOST
             value: unix:///var/run/docker.sock
-          # Fixed, not host CPU count: the pod has no CPU limit (CPU limits only by agreement,
-          # homelab-hosts AGENTS.md), and 4 jobs fit within the 4Gi memory bound for Rust + ONNX.
+          # Applies only to cargo processes launched directly in `runner`. `docker build` runs
+          # inside BuildKit in `dind` and does not inherit this env, so `Bafff/cars-spy`'s
+          # Dockerfile also sets `ENV CARGO_BUILD_JOBS=4` to stay within `dind`'s 4Gi memory limit
+          # (no CPU limit per homelab-hosts AGENTS.md).
           - name: CARGO_BUILD_JOBS
             value: "4"
         volumeMounts:
@@ -51,13 +53,15 @@ template:
             mountPath: /home/runner/_work
           - name: dind-sock
             mountPath: /var/run
+        # Initial estimate before the first CI runs, not a measured peak: measure and tune after
+        # `Bafff/cars-spy` CI lands (`runner` drives git/docker CLI; heavy Rust builds run in `dind`).
         resources:
           requests:
             cpu: "1"
-            memory: 4Gi
+            memory: 2Gi
             ephemeral-storage: 1Gi
           limits:
-            memory: 4Gi
+            memory: 2Gi
             ephemeral-storage: 15Gi
       - name: dind
         image: docker:29.9.0-dind@sha256:0b6d18a4a222e71c88be6034926b4f6cde2fc33c2218643d03ccfddc65995470
