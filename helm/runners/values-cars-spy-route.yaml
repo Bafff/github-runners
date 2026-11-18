@@ -1,8 +1,8 @@
 # The checkout-free `route` job of Bafff/cars-spy's CI: reserves warm persistent `nitro`
 # (`cars-spy-nitro`, ~55 s PR runs) via `nitro-ci-gate` when idle, or spills over immediately
 # to ephemeral `cars-spy-5950x` DinD when `nitro` is busy or unreachable.
-# Kept at `minRunners: 1` with a tiny footprint (no DinD, stdlib Python 3.12 only) so routing
-# finishes in ~2 s without waiting on DinD pod boot or competing for CI-node memory.
+# Kept at `minRunners: 1` with a small request (no DinD, stdlib Python 3.12 only) so routing
+# finishes in ~2 s without waiting on DinD pod boot or queuing behind CI-node memory pressure.
 githubConfigUrl: "https://github.com/Bafff/cars-spy"
 githubConfigSecret: arc-runner-secret
 runnerScaleSetName: "cars-spy-5950x-route"
@@ -25,19 +25,20 @@ template:
         volumeMounts:
           - name: work
             mountPath: /home/runner/_work
-        # Checkout-free stdlib Python HTTP POST to nitro-ci-gate; no CPU limit (homelab-hosts AGENTS.md).
+        # An estimate, not a measured peak (matched to idealista-5950x-route): the runner and a stdlib script.
+        # No CPU limit (only by agreement, homelab-hosts AGENTS.md).
         resources:
           requests:
-            cpu: 50m
+            cpu: 100m
             memory: 128Mi
-            ephemeral-storage: 256Mi
+            ephemeral-storage: 512Mi
           limits:
-            memory: 256Mi
-            ephemeral-storage: 1Gi
+            memory: 512Mi
+            ephemeral-storage: 2Gi
     volumes:
       - name: work
         emptyDir:
-          sizeLimit: 1Gi
+          sizeLimit: 2Gi
 
 controllerServiceAccount:
   namespace: "arc-systems"

@@ -1,4 +1,4 @@
-# Bafff/cars-spy CI: Rust + ONNX checks/tests and Docker image build/smoke jobs. Ephemeral DinD pool.
+# Bafff/cars-spy spillover CI (`cars-spy-nitro` overflow) and `Release` pool: ephemeral DinD for Rust + ONNX checks/tests and GHCR image builds.
 githubConfigUrl: "https://github.com/Bafff/cars-spy"
 githubConfigSecret: arc-runner-secret
 runnerScaleSetName: "cars-spy-5950x"
@@ -42,10 +42,9 @@ template:
         env:
           - name: DOCKER_HOST
             value: unix:///var/run/docker.sock
-          # Applies only to cargo processes launched directly in `runner`. `docker build` runs
-          # inside BuildKit in `dind` and does not inherit this env, so `Bafff/cars-spy`'s
-          # Dockerfile also sets `ENV CARGO_BUILD_JOBS=4` to stay within `dind`'s 4Gi memory limit
-          # (no CPU limit per homelab-hosts AGENTS.md).
+          # Single source of truth for parallelism on `5950x` (`4`, vs `3` on `nitro-wsl-cars-spy`):
+          # forwarded into toolchain containers by `tools/test-suite.sh` (`-e CARGO_BUILD_JOBS`) and
+          # into BuildKit by `ci.yaml` / `tools/release/image.sh` (`--build-arg CARGO_BUILD_JOBS`).
           - name: CARGO_BUILD_JOBS
             value: "4"
         volumeMounts:
