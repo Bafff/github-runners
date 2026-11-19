@@ -1,0 +1,44 @@
+# Lightweight warm pool for Bafff/leiloes-radar's `route` and `proven` jobs:
+# starts immediately without booting a heavy 9 GiB DinD pod (`leiloes-ci`) or
+# queuing behind CI-node memory pressure. No Docker daemon, no cluster access.
+githubConfigUrl: "https://github.com/Bafff/leiloes-radar"
+githubConfigSecret: arc-runner-secret
+runnerScaleSetName: "leiloes-5950x-route"
+minRunners: 1
+maxRunners: 2
+
+template:
+  spec:
+    # Runs pull-request workflow definitions and code: no cluster credentials.
+    automountServiceAccountToken: false
+    priorityClassName: ci-runner-low
+    nodeSelector:
+      homelab.dev/pool: ci
+    tolerations:
+      - {key: homelab.dev/pool, operator: Equal, value: ci, effect: NoSchedule}
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:2.338.0@sha256:4ffadc0002b2581327e06101fc8c06cd189232baf79fe561fac9caeb76f5e807
+        command: ["/home/runner/run.sh"]
+        volumeMounts:
+          - name: work
+            mountPath: /home/runner/_work
+        # An estimate, not a measured peak (matched to idealista-5950x-route and cars-spy-5950x-route):
+        # the runner, a shallow checkout for `proven`, and a stdlib route script.
+        # No CPU limit (only by agreement, homelab-hosts AGENTS.md).
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+            ephemeral-storage: 512Mi
+          limits:
+            memory: 512Mi
+            ephemeral-storage: 2Gi
+    volumes:
+      - name: work
+        emptyDir:
+          sizeLimit: 2Gi
+
+controllerServiceAccount:
+  namespace: "arc-systems"
+  name: "arc-gha-rs-controller"
