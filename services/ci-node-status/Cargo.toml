@@ -1,0 +1,21 @@
+[package]
+name = "ci-node-status"
+version = "0.1.0"
+edition = "2024"
+description = "Read-only HTTP status service for the 5950x ARC CI node"
+publish = false
+
+[dependencies]
+libc = "0.2"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-pki-types = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ureq = { version = "3", default-features = false, features = ["rustls-no-provider"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

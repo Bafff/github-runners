@@ -1,0 +1,90 @@
+name: ci-node-status
+
+on:
+  pull_request:
+    paths:
+      - "services/ci-node-status/**"
+      - "manifests/ci-node-status/**"
+      - ".github/workflows/ci-node-status.yml"
+  push:
+    branches: [main]
+    paths:
+      - "services/ci-node-status/**"
+      - ".github/workflows/ci-node-status.yml"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: services/ci-node-status
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Check formatting, clippy, and unit tests
+        run: |
+          cargo fmt --check
+          cargo clippy --all-targets --locked -- -D warnings
+          cargo test --locked
+
+      - name: Build scratch image and smoke-test /healthz
+        run: |
+          docker build -t ci-node-status:smoke .
+          cid=$(docker run -d --rm -p 127.0.0.1:18080:8080 -e NODE_NAME=smoke-node ci-node-status:smoke)
+          trap 'docker stop -t 2 "$cid" >/dev/null 2>&1 || true' EXIT
+          for _ in $(seq 1 20); do
+            if resp=$(curl -fsS http://127.0.0.1:18080/healthz 2>/dev/null); then
+              echo "healthz: $resp"
+              [ "$resp" = '{"ok":true}' ] || exit 1
+              exit 0
+            fi
+            sleep 0.2
+          done
+          echo "::error::ci-node-status did not respond on /healthz"
+          exit 1
+
+  publish:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/bafff/ci-node-status
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: printf '%s\n' "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push immutable image
+        id: push
+        run: |
+          set -euo pipefail
+          short_sha=$(git rev-parse --short=12 HEAD)
+          tag="sha-${short_sha}"
+          docker build \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            -t "${IMAGE}:${tag}" \
+            -t "${IMAGE}:latest" \
+            services/ci-node-status
+          docker push "${IMAGE}:${tag}"
+          docker push "${IMAGE}:latest"
+          digest=$(docker inspect --format '{{index .RepoDigests 0}}' "${IMAGE}:${tag}")
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Published ci-node-status"
+            echo ""
+            echo "- Tag: \`${IMAGE}:${tag}\`"
+            echo "- Digest: \`${digest}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
