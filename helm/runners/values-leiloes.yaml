@@ -1,7 +1,8 @@
-# Bafff/leiloes-radar CI (.github/workflows/ci.yaml, one job `test`): ruff, yamllint, serial pytest over
-# unit + integration tests, docker build and smoke run of the scraper image. The repository is private on
-# GitHub Free and hosted runs stopped on billing, so CI moves here. dind because the job starts a
-# postgres service (127.0.0.1:5432 through the shared pod network namespace) and runs docker build/run.
+# Bafff/leiloes-radar CI (.github/workflows/ci.yaml, one job `test`): ruff, yamllint, pytest (xdist)
+# over unit + integration tests, docker build and smoke run of the scraper image. The repository is
+# private on GitHub Free and hosted runs stopped on billing, so CI moves here. dind because the job
+# starts a postgres service (127.0.0.1:5432 through the shared pod network namespace) and runs
+# docker build/run.
 githubConfigUrl: "https://github.com/Bafff/leiloes-radar"
 githubConfigSecret: arc-runner-secret
 # `runs-on: leiloes-ci` means any Radar runner: this pool, and the host runners on nitro and the Mac
@@ -11,6 +12,9 @@ githubConfigSecret: arc-runner-secret
 runnerScaleSetName: "leiloes-ci"
 minRunners: 0
 # One job per workflow run; a pull request and a push to main can overlap.
+# Total pod memory is 9Gi (6Gi runner + 3Gi dind), max 18Gi at maxRunners: 2, on the ~50 GiB
+# Allocatable CI node. Coexists comfortably with idealista-5950x (13.5Gi each):
+# 1 × idealista + 1 × leiloes = 22.5Gi, and even 2 × idealista + 2 × leiloes = 45Gi fits.
 maxRunners: 2
 
 template:
@@ -51,23 +55,29 @@ template:
         env:
           - name: DOCKER_HOST
             value: unix:///var/run/docker.sock
+          # Read by Bafff/leiloes-radar CI (${PYTEST_XDIST_NUMPROCESSES:-4}) so 5950x runs 10 xdist
+          # workers without affecting smaller host runners (nitro/Mac). Fixed because the pod has no
+          # CPU limit (only by agreement, homelab-hosts AGENTS.md) and 6Gi memory below is sized for
+          # 10 workers.
+          - name: PYTEST_XDIST_NUMPROCESSES
+            value: "10"
         volumeMounts:
           - name: work
             mountPath: /home/runner/_work
           - name: dind-sock
             mountPath: /var/run
-        # An estimate, not a measured CI peak: CI runs pytest in one process (no -n), and the local
-        # `make test-unit` (-n 4) peaked at ~370 MB RSS per process on 2026-10-17. 2Gi covers pip
-        # install, the serial suite with integration tests and Runner.Worker. requests = limits for
-        # memory so excess jobs queue instead of evicting. No CPU limit (only by agreement,
-        # homelab-hosts AGENTS.md). Measure the first runs before tuning.
+        # An estimate, not a measured CI peak: local `make test-unit` (-n 4) peaked at ~370 MB RSS
+        # per process on 2026-10-17. 6Gi covers pip install, 10 xdist workers over unit +
+        # integration tests, and Runner.Worker. requests = limits for memory so excess pods queue in
+        # Pending instead of evicting. No CPU limit (only by agreement, homelab-hosts AGENTS.md);
+        # requests.cpu 2000m matches values-pt309.yaml. Measure after rollout before tuning.
         resources:
           requests:
-            cpu: 1000m
-            memory: 2Gi
+            cpu: 2000m
+            memory: 6Gi
             ephemeral-storage: 1Gi
           limits:
-            memory: 2Gi
+            memory: 6Gi
             ephemeral-storage: 10Gi
       - name: dind
         image: docker:29.9.0-dind@sha256:0b6d18a4a222e71c88be6034926b4f6cde2fc33c2218643d03ccfddc65995470
@@ -91,15 +101,17 @@ template:
             mountPath: /home/runner/externals
           - name: dind-storage
             mountPath: /var/lib/docker
-        # dockerd, the postgres:18.4 service container and BuildKit running pip install for the
-        # python:3.14.6-slim scraper image: an estimate, not a measured peak.
+        # dockerd, the postgres:18.4 service container (with `--tmpfs /var/lib/postgresql:rw,size=1g`),
+        # and BuildKit running pip install for the python:3.14.6-slim scraper image: 3Gi leaves
+        # headroom for 1 GiB tmpfs + Postgres + BuildKit (an estimate, not a measured peak).
+        # requests = limits for memory so excess pods queue in Pending instead of evicting.
         resources:
           requests:
             cpu: 500m
-            memory: 2Gi
+            memory: 3Gi
             ephemeral-storage: 1Gi
           limits:
-            memory: 2Gi
+            memory: 3Gi
             ephemeral-storage: 10Gi
     volumes:
       - name: work
