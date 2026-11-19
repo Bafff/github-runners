@@ -11,6 +11,7 @@ Standard library only.
 from __future__ import annotations
 
 import fnmatch
+import http.client
 import json
 import os
 import signal
@@ -34,10 +35,11 @@ DEFAULT_TOKEN_PATH = Path("/var/run/secrets/kubernetes.io/serviceaccount/token")
 DEFAULT_CA_PATH = Path("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
 DEFAULT_LOADAVG_PATH = Path("/proc/loadavg")
 DEFAULT_MEMINFO_PATH = Path("/proc/meminfo")
+DEFAULT_MAX_CONCURRENCY = 32
 
 DEFAULT_LIGHT_SUFFIXES: tuple[str, ...] = ("-route", "-light", "-deploy")
 DEFAULT_LIGHT_PREFIXES: tuple[str, ...] = ("sonarqube-",)
-TERMINAL_PHASES: frozenset[str] = frozenset({"Succeeded", "Failed"})
+TERMINAL_PHASES: frozenset[str] = frozenset({"Succeeded", "Failed", "Outdated"})
 
 
 class KubernetesAPIError(RuntimeError):
@@ -108,7 +110,11 @@ def read_load1(path: Path = DEFAULT_LOADAVG_PATH) -> float | None:
 
 
 def read_mem_available_mib(path: Path = DEFAULT_MEMINFO_PATH) -> int | None:
-    """Read MemAvailable (falling back to MemFree) in MiB from /proc/meminfo."""
+    """Read MemAvailable (falling back to MemFree) in MiB from /proc/meminfo.
+
+    Note: inside k3d without lxcfs, /proc/meminfo reflects the underlying host
+    kernel (WSL2 VM) rather than the k3d node container's Docker memory limit.
+    """
     try:
         text = path.read_text(encoding="utf-8")
     except OSError:
@@ -335,7 +341,7 @@ class KubernetesClient:
             code = exc.code
             exc.close()
             raise KubernetesAPIError(f"kubernetes API {path} returned HTTP {code}") from exc
-        except (urllib.error.URLError, OSError, TimeoutError) as exc:
+        except (urllib.error.URLError, http.client.HTTPException, OSError, TimeoutError) as exc:
             raise KubernetesAPIError(f"kubernetes API {path} request failed: {exc}") from exc
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise KubernetesAPIError(f"kubernetes API {path} returned invalid JSON") from exc
@@ -485,6 +491,48 @@ def make_handler(service: StatusService) -> type[BaseHTTPRequestHandler]:
 class ReusableThreadingHTTPServer(ThreadingHTTPServer):
     allow_reuse_address = True
     daemon_threads = True
+    request_queue_size = 32
+
+    def __init__(
+        self,
+        server_address: tuple[str, int],
+        request_handler_class: type[BaseHTTPRequestHandler],
+        *,
+        max_concurrency: int = DEFAULT_MAX_CONCURRENCY,
+    ) -> None:
+        self._concurrency = threading.BoundedSemaphore(max(1, max_concurrency))
+        super().__init__(server_address, request_handler_class)
+
+    def process_request(self, request: Any, client_address: Any) -> None:
+        if not self._concurrency.acquire(blocking=False):
+            body = b'{"error":"too many concurrent requests"}\n'
+            response = (
+                b"HTTP/1.1 503 Service Unavailable\r\n"
+                b"Content-Type: application/json\r\n"
+                b"Cache-Control: no-store\r\n"
+                b"Connection: close\r\n"
+                + f"Content-Length: {len(body)}\r\n\r\n".encode("ascii")
+                + body
+            )
+            try:
+                request.settimeout(0.2)
+                request.sendall(response)
+            except OSError:
+                pass
+            finally:
+                self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except Exception:
+            self._concurrency.release()
+            raise
+
+    def process_request_thread(self, request: Any, client_address: Any) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._concurrency.release()
 
 
 def build_service_from_env(env: dict[str, str] | None = None) -> StatusService:
@@ -512,8 +560,13 @@ def build_service_from_env(env: dict[str, str] | None = None) -> StatusService:
 def main() -> None:
     host = os.environ.get("BIND_HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", "8080"))
+    max_concurrency = int(os.environ.get("MAX_CONCURRENCY", str(DEFAULT_MAX_CONCURRENCY)))
     service = build_service_from_env()
-    server = ReusableThreadingHTTPServer((host, port), make_handler(service))
+    server = ReusableThreadingHTTPServer(
+        (host, port),
+        make_handler(service),
+        max_concurrency=max_concurrency,
+    )
 
     def _handle_signal(signum: int, _frame: Any) -> None:
         print(f"received signal {signum}, shutting down", flush=True)

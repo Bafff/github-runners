@@ -17,8 +17,10 @@ spec:
     spec:
       serviceAccountName: ci-node-status
       automountServiceAccountToken: true
-      # Pin to the CI node (k3d-5950x-ci-0) so /proc/loadavg and /proc/meminfo
-      # reflect the CI node itself rather than the control-plane server node.
+      # Pin to the CI node (k3d-5950x-ci-0) so spec.nodeName reports the CI node
+      # and /proc/loadavg + /proc/meminfo are read there (note: on k3d without lxcfs,
+      # /proc reflects the underlying WSL2 host kernel rather than the k3d node's
+      # Docker cgroup memory limit).
       nodeSelector:
         homelab.dev/pool: ci
       tolerations:

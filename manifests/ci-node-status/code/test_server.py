@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import socket
 import sys
 import tempfile
 import threading
@@ -262,6 +263,19 @@ class EvaluateStatusTests(unittest.TestCase):
                 workflow_run_id=2002,
             ),
             make_er(
+                "leiloes-ci-runner-outdated",
+                "leiloes-ci",
+                phase="Outdated",
+            ),
+            make_er(
+                "ponte-5950x-runner-outdated",
+                "ponte-5950x",
+                phase="Outdated",
+                job_id="uuid-outdated",
+                job_name="test",
+                workflow_run_id=2003,
+            ),
+            make_er(
                 "leiloes-ci-runner-cancelled",
                 "leiloes-ci",
                 phase="Pending",
@@ -410,7 +424,12 @@ class StatusServiceCacheTests(unittest.TestCase):
 
 
 class HttpServerTests(unittest.TestCase):
-    def _start_server(self, fake: FakeK8s) -> tuple[server.ReusableThreadingHTTPServer, str]:
+    def _start_server(
+        self,
+        fake: FakeK8s,
+        *,
+        max_concurrency: int = server.DEFAULT_MAX_CONCURRENCY,
+    ) -> tuple[server.ReusableThreadingHTTPServer, str]:
         tmp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(tmp_dir.cleanup)
         loadavg = Path(tmp_dir.name) / "loadavg"
@@ -425,7 +444,11 @@ class HttpServerTests(unittest.TestCase):
             loadavg_path=loadavg,
             meminfo_path=meminfo,
         )
-        httpd = server.ReusableThreadingHTTPServer(("127.0.0.1", 0), server.make_handler(service))
+        httpd = server.ReusableThreadingHTTPServer(
+            ("127.0.0.1", 0),
+            server.make_handler(service),
+            max_concurrency=max_concurrency,
+        )
         thread = threading.Thread(target=httpd.serve_forever, daemon=True)
         thread.start()
         self.addCleanup(httpd.server_close)
@@ -508,6 +531,41 @@ class HttpServerTests(unittest.TestCase):
         self.assertEqual(body["node"], "k3d-5950x-ci-0")
         self.assertIn("apiserver unreachable", body["error"])
 
+    def test_concurrency_limit_returns_503_and_recovers(self) -> None:
+        entered = threading.Event()
+        release = threading.Event()
+
+        class BlockingK8s(FakeK8s):
+            def list_ephemeral_runners(self) -> list[dict[str, Any]]:
+                entered.set()
+                release.wait(timeout=3.0)
+                return super().list_ephemeral_runners()
+
+        fake = BlockingK8s(ars=[], ers=[])
+        _, base = self._start_server(fake, max_concurrency=1)
+
+        first_result: list[tuple[int, dict[str, Any]]] = []
+
+        def run_first() -> None:
+            first_result.append(self._get(f"{base}/status"))
+
+        worker = threading.Thread(target=run_first, daemon=True)
+        worker.start()
+        self.assertTrue(entered.wait(timeout=2.0))
+
+        code, body = self._get(f"{base}/healthz")
+        self.assertEqual(code, 503)
+        self.assertIn("too many concurrent requests", body["error"])
+
+        release.set()
+        worker.join(timeout=3.0)
+        self.assertEqual(first_result[0][0], 200)
+
+        # Semaphore slot released -> subsequent requests succeed.
+        code, health = self._get(f"{base}/healthz")
+        self.assertEqual(code, 200)
+        self.assertEqual(health, {"ok": True})
+
 
 class KubernetesClientTests(unittest.TestCase):
     def test_reads_rotated_token_and_hides_secret_on_error(self) -> None:
@@ -555,6 +613,41 @@ class KubernetesClientTests(unittest.TestCase):
                 client.list_ephemeral_runners()
             self.assertIn("403", str(ctx.exception))
             self.assertNotIn("secret-token-v2", str(ctx.exception))
+
+    def test_truncated_response_raises_k8s_api_error(self) -> None:
+        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen(1)
+        port = listener.getsockname()[1]
+        self.addCleanup(listener.close)
+
+        def serve_truncated() -> None:
+            conn, _ = listener.accept()
+            with conn:
+                conn.recv(4096)
+                conn.sendall(
+                    b"HTTP/1.1 200 OK\r\n"
+                    b"Content-Type: application/json\r\n"
+                    b"Content-Length: 100\r\n\r\n"
+                    b'{"items":'
+                )
+
+        t = threading.Thread(target=serve_truncated, daemon=True)
+        t.start()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            token_file = Path(tmp) / "token"
+            token_file.write_text("secret-token\n", encoding="utf-8")
+            client = server.KubernetesClient(
+                namespace="arc-runners",
+                api_url=f"http://127.0.0.1:{port}",
+                token_path=token_file,
+                ca_path=Path(tmp) / "no-ca",
+            )
+            with self.assertRaises(server.KubernetesAPIError) as ctx:
+                client.list_ephemeral_runners()
+            self.assertNotIn("secret-token", str(ctx.exception))
+        t.join(timeout=2.0)
 
 
 if __name__ == "__main__":
