@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ci-node-status
+  namespace: arc-runners
+  labels:
+    app.kubernetes.io/name: ci-node-status
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ci-node-status
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ci-node-status
+    spec:
+      serviceAccountName: ci-node-status
+      automountServiceAccountToken: true
+      # Pin to the CI node (k3d-5950x-ci-0) so /proc/loadavg and /proc/meminfo
+      # reflect the CI node itself rather than the control-plane server node.
+      nodeSelector:
+        homelab.dev/pool: ci
+      tolerations:
+        - key: homelab.dev/pool
+          operator: Equal
+          value: ci
+          effect: NoSchedule
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ci-node-status
+          image: python:3.14-alpine@sha256:a18b20ad69e74df6cf6d2e1b1a260d7a1ecf5380fd83b310f83ba88c461cf894
+          command: ["python3", "-B", "/app/server.py"]
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: PORT
+              value: "8080"
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            # Optional comma-separated extra scale-set names or globs to exclude
+            # in addition to the default suffixes (-route, -light, -deploy) and
+            # prefix (sonarqube-*).
+            - name: LIGHT_SCALE_SETS
+              value: ""
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 10
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 30
+            timeoutSeconds: 2
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          # No CPU limit (only by agreement, README.md / homelab-hosts AGENTS.md).
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+              ephemeral-storage: 32Mi
+            limits:
+              memory: 64Mi
+              ephemeral-storage: 128Mi
+          volumeMounts:
+            - name: code
+              mountPath: /app
+              readOnly: true
+      volumes:
+        - name: code
+          configMap:
+            name: ci-node-status-code

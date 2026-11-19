@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ci-node-status
+  namespace: arc-runners
+  labels:
+    app.kubernetes.io/name: ci-node-status
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: ci-node-status
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
