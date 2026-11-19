@@ -3,21 +3,22 @@ use std::env;
 use std::net::TcpListener;
 use std::process::ExitCode;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicI32, Ordering};
 
-use ci_node_status::{DEFAULT_MAX_CONCURRENCY, build_service_from_env_map, serve};
+use ci_node_status::{DEFAULT_MAX_CONCURRENCY, ShutdownHandle, build_service_from_env_map, serve};
 
-static SHUTDOWN_FLAG: AtomicBool = AtomicBool::new(false);
+static WAKE_WRITE_FD: AtomicI32 = AtomicI32::new(-1);
 
 extern "C" fn handle_signal(_sig: libc::c_int) {
-    SHUTDOWN_FLAG.store(true, Ordering::Release);
+    let fd = WAKE_WRITE_FD.load(Ordering::Acquire);
+    ShutdownHandle::wake_fd(fd);
 }
 
-fn install_signal_handlers() {
+fn install_signal_handlers(write_fd: libc::c_int) {
+    WAKE_WRITE_FD.store(write_fd, Ordering::Release);
     unsafe {
         let mut sa: libc::sigaction = std::mem::zeroed();
         sa.sa_sigaction = handle_signal as *const () as usize;
-        // Intentionally omit SA_RESTART so poll() returns EINTR immediately on SIGTERM/SIGINT.
         sa.sa_flags = 0;
         libc::sigemptyset(&mut sa.sa_mask);
         libc::sigaction(libc::SIGTERM, &sa, std::ptr::null_mut());
@@ -27,8 +28,23 @@ fn install_signal_handlers() {
     }
 }
 
+fn disarm_signal_handlers() {
+    WAKE_WRITE_FD.store(-1, Ordering::Release);
+    unsafe {
+        libc::signal(libc::SIGTERM, libc::SIG_DFL);
+        libc::signal(libc::SIGINT, libc::SIG_DFL);
+    }
+}
+
 fn main() -> ExitCode {
-    install_signal_handlers();
+    let shutdown = match ShutdownHandle::new() {
+        Ok(h) => h,
+        Err(err) => {
+            eprintln!("fatal: failed to create shutdown wake-up pipe: {err}");
+            return ExitCode::FAILURE;
+        }
+    };
+    install_signal_handlers(shutdown.write_fd());
 
     let env_map: HashMap<String, String> = env::vars().collect();
     let host = env_map
@@ -49,6 +65,7 @@ fn main() -> ExitCode {
     let service = match build_service_from_env_map(&env_map) {
         Ok(svc) => Arc::new(svc),
         Err(err) => {
+            disarm_signal_handlers();
             eprintln!("fatal: failed to initialize service: {err}");
             return ExitCode::FAILURE;
         }
@@ -58,6 +75,7 @@ fn main() -> ExitCode {
     let listener = match TcpListener::bind(&bind_addr) {
         Ok(l) => l,
         Err(err) => {
+            disarm_signal_handlers();
             eprintln!("fatal: failed to bind {bind_addr}: {err}");
             return ExitCode::FAILURE;
         }
@@ -69,7 +87,10 @@ fn main() -> ExitCode {
         service.namespace()
     );
 
-    if let Err(err) = serve(listener, service, max_concurrency, &SHUTDOWN_FLAG) {
+    let result = serve(listener, service, max_concurrency, &shutdown);
+    disarm_signal_handlers();
+
+    if let Err(err) = result {
         eprintln!("fatal: server error: {err}");
         return ExitCode::FAILURE;
     }

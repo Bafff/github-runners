@@ -10,7 +10,7 @@ use std::fmt;
 use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::os::fd::AsRawFd;
+use std::os::fd::{AsRawFd, RawFd};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, Once};
@@ -1111,22 +1111,90 @@ impl Drop for PermitGuard {
     }
 }
 
+/// Async-signal-safe shutdown coordinator backed by a non-blocking self-pipe.
+///
+/// Polling `read_fd()` alongside the listening socket guarantees that a signal
+/// arriving before `poll()` or handled on a worker thread can never lose its
+/// wake-up.
+pub struct ShutdownHandle {
+    flag: AtomicBool,
+    read_fd: RawFd,
+    write_fd: RawFd,
+}
+
+impl ShutdownHandle {
+    pub fn new() -> std::io::Result<Self> {
+        let mut fds = [0 as libc::c_int; 2];
+        let rc = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_NONBLOCK | libc::O_CLOEXEC) };
+        if rc != 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        Ok(Self {
+            flag: AtomicBool::new(false),
+            read_fd: fds[0],
+            write_fd: fds[1],
+        })
+    }
+
+    pub fn read_fd(&self) -> RawFd {
+        self.read_fd
+    }
+
+    pub fn write_fd(&self) -> RawFd {
+        self.write_fd
+    }
+
+    pub fn is_triggered(&self) -> bool {
+        self.flag.load(Ordering::Acquire)
+    }
+
+    pub fn trigger(&self) {
+        self.flag.store(true, Ordering::Release);
+        Self::wake_fd(self.write_fd);
+    }
+
+    /// Async-signal-safe helper suitable for POSIX signal handlers.
+    pub fn wake_fd(fd: RawFd) {
+        if fd >= 0 {
+            let byte: u8 = 1;
+            let _ = unsafe { libc::write(fd, (&byte as *const u8).cast(), 1) };
+        }
+    }
+}
+
+impl Drop for ShutdownHandle {
+    fn drop(&mut self) {
+        unsafe {
+            libc::close(self.read_fd);
+            libc::close(self.write_fd);
+        }
+    }
+}
+
 pub fn serve(
     listener: TcpListener,
     service: Arc<StatusService>,
     max_concurrency: usize,
-    shutdown: &AtomicBool,
+    shutdown: &ShutdownHandle,
 ) -> std::io::Result<()> {
     let limiter = Arc::new(ConcurrencyLimiter::new(max_concurrency));
-    let fd = listener.as_raw_fd();
+    let listener_fd = listener.as_raw_fd();
+    let wake_fd = shutdown.read_fd();
 
-    while !shutdown.load(Ordering::Acquire) {
-        let mut pfd = libc::pollfd {
-            fd,
-            events: libc::POLLIN,
-            revents: 0,
-        };
-        let rc = unsafe { libc::poll(&mut pfd, 1, -1) };
+    while !shutdown.is_triggered() {
+        let mut pfds = [
+            libc::pollfd {
+                fd: listener_fd,
+                events: libc::POLLIN,
+                revents: 0,
+            },
+            libc::pollfd {
+                fd: wake_fd,
+                events: libc::POLLIN,
+                revents: 0,
+            },
+        ];
+        let rc = unsafe { libc::poll(pfds.as_mut_ptr(), pfds.len() as libc::nfds_t, -1) };
         if rc < 0 {
             let err = std::io::Error::last_os_error();
             if err.kind() == std::io::ErrorKind::Interrupted {
@@ -1134,7 +1202,10 @@ pub fn serve(
             }
             return Err(err);
         }
-        if rc == 0 || (pfd.revents & libc::POLLIN) == 0 {
+        if shutdown.is_triggered() || (pfds[1].revents & (libc::POLLIN | libc::POLLHUP)) != 0 {
+            break;
+        }
+        if rc == 0 || (pfds[0].revents & libc::POLLIN) == 0 {
             continue;
         }
 
@@ -1874,7 +1945,7 @@ mod tests {
 
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
-        let shutdown = Arc::new(AtomicBool::new(false));
+        let shutdown = Arc::new(ShutdownHandle::new().unwrap());
         let shutdown_bg = Arc::clone(&shutdown);
         let svc_bg = Arc::clone(&svc);
         let handle = thread::spawn(move || {
@@ -1920,8 +1991,7 @@ mod tests {
                 .contains("apiserver unreachable")
         );
 
-        shutdown.store(true, Ordering::Release);
-        let _ = TcpStream::connect(addr);
+        shutdown.trigger();
         handle.join().unwrap();
         let _ = fs::remove_dir_all(&dir);
     }
@@ -1946,7 +2016,7 @@ mod tests {
 
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
-        let shutdown = Arc::new(AtomicBool::new(false));
+        let shutdown = Arc::new(ShutdownHandle::new().unwrap());
         let shutdown_bg = Arc::clone(&shutdown);
         let handle = thread::spawn(move || {
             let _ = serve(listener, svc, 1, &shutdown_bg);
@@ -1983,9 +2053,46 @@ mod tests {
         assert_eq!(code, 200);
         assert_eq!(health, json!({"ok": true}));
 
-        shutdown.store(true, Ordering::Release);
-        let _ = TcpStream::connect(addr);
+        shutdown.trigger();
         handle.join().unwrap();
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_shutdown_wakes_idle_poll_without_connections() {
+        let dir = temp_dir("shutdown-idle");
+        let fake = Arc::new(FakeK8s::new(vec![], vec![]));
+        let svc = Arc::new(StatusService::new(
+            fake,
+            "k3d-5950x-ci-0".to_owned(),
+            LightPoolMatcher::default(),
+            10.0,
+            dir.join("none"),
+            dir.join("none2"),
+            default_monotonic_clock(),
+        ));
+
+        // Case 1: triggered while serve() is blocked inside poll() with no clients.
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let shutdown = Arc::new(ShutdownHandle::new().unwrap());
+        let shutdown_bg = Arc::clone(&shutdown);
+        let svc_bg = Arc::clone(&svc);
+        let handle = thread::spawn(move || serve(listener, svc_bg, 4, &shutdown_bg));
+        thread::sleep(Duration::from_millis(30));
+        let started = Instant::now();
+        shutdown.trigger();
+        handle.join().unwrap().unwrap();
+        assert!(started.elapsed() < Duration::from_secs(1));
+
+        // Case 2: wake byte written to pipe before serve() enters poll() (simulating
+        // a signal arriving between flag check and poll(), or on another thread).
+        let listener2 = TcpListener::bind("127.0.0.1:0").unwrap();
+        let shutdown2 = ShutdownHandle::new().unwrap();
+        ShutdownHandle::wake_fd(shutdown2.write_fd());
+        let started2 = Instant::now();
+        serve(listener2, svc, 4, &shutdown2).unwrap();
+        assert!(started2.elapsed() < Duration::from_secs(1));
+
         let _ = fs::remove_dir_all(&dir);
     }
 
