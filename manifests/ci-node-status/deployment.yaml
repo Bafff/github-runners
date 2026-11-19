@@ -37,11 +37,8 @@ spec:
           type: RuntimeDefault
       containers:
         - name: ci-node-status
-          image: python:3.14-alpine@sha256:a18b20ad69e74df6cf6d2e1b1a260d7a1ecf5380fd83b310f83ba88c461cf894
-          command: ["python3", "-B", "/app/server.py"]
+          image: ghcr.io/bafff/ci-node-status:sha-db32961b7824@sha256:32f51e5c6ba4dc2033f4041b7d00ed2e542d0444c435005b96398559f6db5567
           env:
-            - name: PYTHONUNBUFFERED
-              value: "1"
             - name: PORT
               value: "8080"
             - name: POD_NAMESPACE
@@ -65,14 +62,14 @@ spec:
             httpGet:
               path: /healthz
               port: http
-            initialDelaySeconds: 2
+            initialDelaySeconds: 1
             periodSeconds: 10
             timeoutSeconds: 2
           livenessProbe:
             httpGet:
               path: /healthz
               port: http
-            initialDelaySeconds: 5
+            initialDelaySeconds: 3
             periodSeconds: 30
             timeoutSeconds: 2
           securityContext:
@@ -83,17 +80,9 @@ spec:
           # No CPU limit (only by agreement, README.md / homelab-hosts AGENTS.md).
           resources:
             requests:
-              cpu: 10m
-              memory: 32Mi
-              ephemeral-storage: 32Mi
+              cpu: 5m
+              memory: 8Mi
+              ephemeral-storage: 4Mi
             limits:
-              memory: 64Mi
-              ephemeral-storage: 128Mi
-          volumeMounts:
-            - name: code
-              mountPath: /app
-              readOnly: true
-      volumes:
-        - name: code
-          configMap:
-            name: ci-node-status-code
+              memory: 24Mi
+              ephemeral-storage: 16Mi

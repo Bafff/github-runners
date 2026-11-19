@@ -5,7 +5,3 @@ resources:
   - rbac.yaml
   - deployment.yaml
   - service.yaml
-configMapGenerator:
-  - name: ci-node-status-code
-    files:
-      - code/server.py
