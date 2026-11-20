@@ -46,3 +46,14 @@ template:
 controllerServiceAccount:
   namespace: "arc-systems"
   name: "arc-gha-rs-controller"
+
+listenerTemplate:
+  spec:
+    containers:
+      - name: listener
+        resources:
+          requests:
+            cpu: 5m
+            memory: 16Mi
+          limits:
+            memory: 64Mi
