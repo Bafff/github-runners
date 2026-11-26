@@ -52,10 +52,12 @@ template:
             mountPath: /home/runner/_work
           - name: dind-sock
             mountPath: /var/run
-        # Measured 2026-11-18 on `Bafff/cars-spy`: `runner` only runs git, `uvx yamllint`,
-        # kustomize, and the docker CLI (~200 MiB RSS), while Rust/ONNX compile + PG18 tests +
-        # `--release` LTO image build run inside `dind` (`anon+kernel` peak 1,423 MiB, cgroup
-        # `memory.peak` 3,762 MiB incl. page cache, `/var/lib/docker` 6.96 GB).
+        # Measured 2026-11-18 and updated 2026-11-26 (homelab-hosts #322): `runner` only runs
+        # git, `uvx yamllint`, kustomize, and the docker CLI (~200 MiB RSS), while Rust/ONNX
+        # compile + PG18 tests + `--release` LTO image build run inside `dind`. As `cars-spy`
+        # grew to 145 Rust files / 38 integration test crates, two parallel `rustc` processes
+        # reached 3.27 GiB anon RSS alone (thrashing 3.5 GiB swapless DinD on nitro), so `dind`
+        # is raised from 4Gi to 8Gi to match `nitro` and `lenovo`.
         resources:
           requests:
             cpu: 500m
@@ -89,10 +91,10 @@ template:
         resources:
           requests:
             cpu: "1"
-            memory: 4Gi
+            memory: 8Gi
             ephemeral-storage: 1Gi
           limits:
-            memory: 4Gi
+            memory: 8Gi
             ephemeral-storage: 15Gi
     volumes:
       - name: work
